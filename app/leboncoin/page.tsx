@@ -38,11 +38,6 @@ export default function LeboncoinPage() {
 
   const [productId, setProductId] = useState<string>('');
   const [price, setPrice] = useState<string>('15');
-  const [condition, setCondition] = useState<string>('Neuf sous blister');
-  const [shipping, setShipping] = useState<boolean>(true);
-  const [pickup, setPickup] = useState<boolean>(true);
-  const [city, setCity] = useState<string>('Nieppe (59850)');
-  const [notes, setNotes] = useState<string>('Stocké au sec sous sachet déshydratant.');
 
   const [copiedTitle, setCopiedTitle] = useState<boolean>(false);
   const [copiedBody, setCopiedBody] = useState<boolean>(false);
@@ -104,29 +99,17 @@ export default function LeboncoinPage() {
 
   const generateDescription = () => {
     if (!selectedProduct) return '';
-    const currentStock = getProductStock(selectedProduct.id);
 
-    return `Bonjour,
-
-Je vends cette bobine de filament pour imprimante 3D :
+    return `Vends bobine ${selectedProduct.brand} ${selectedProduct.material} ${selectedProduct.color} compatible pour toutes les imprimantes 3D (Anycubic, Bambu Lab, Creality etc)
 
 🔹 CARACTÉRISTIQUES :
 • Marque : ${selectedProduct.brand}
 • Type de filament : ${selectedProduct.material} (Diamètre standard 1.75mm)
 • Couleur : ${selectedProduct.color}
-• État : ${condition}
-• Stock disponible : ${currentStock} unité(s)
+• État : Neuf sous blister
+Possibilité de faire des lots différents et panacher les couleurs si besoin. J'ai du PLA et du PETG sur mon compte
 
-💡 INFOS COMPLÉMENTAIRES :
-• ${notes}
-• Excellente adhérence au plateau et rendu très propre.
-• Compatible avec toutes les imprimantes 3D FDM (Anycubic, Bambu Lab, Creality, Elegoo, Sovol, etc.).
-
-📦 LIVRAISON & REMISE :
-${pickup ? `• Remise en main propre possible sur ${city}.` : ''}
-${shipping ? '• Envoi soigné et rapide possible via Leboncoin (Mondial Relay, Colissimo, Shop2Shop).' : ''}
-
-N'hésitez pas à me contacter si vous souhaitez grouper avec d'autres bobines pour réduire les frais de port !`;
+Envoie rapide via Mondial Relay via l'achat protégé sur LeBoncoin ou remise en main propre chez moi à Nieppe. Pour toute questions, n'hésitez pas`;
   };
 
   const handleCopyTitle = async () => {
@@ -156,7 +139,7 @@ N'hésitez pas à me contacter si vous souhaitez grouper avec d'autres bobines p
           <Sparkles className="text-amber-400" size={20} /> Générateur d'Annonces Leboncoin & Vinted
         </h2>
         <p className="text-xs text-slate-400 mt-1">
-          Sélectionne une référence de ton stock pour générer instantanément un titre percutant et une description prête à copier.
+          Sélectionne une référence de ton stock pour générer la description prête à copier.
         </p>
       </div>
 
@@ -187,81 +170,17 @@ N'hésitez pas à me contacter si vous souhaitez grouper avec d'autres bobines p
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
-                Prix de vente (€)
-              </label>
-              <input
-                type="number"
-                step="0.5"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-indigo-500 text-white font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
-                État
-              </label>
-              <select
-                value={condition}
-                onChange={(e) => setCondition(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-indigo-500 text-white"
-              >
-                <option value="Neuf sous blister">Neuf sous blister</option>
-                <option value="Entamé / Très bon état">Entamé / TBE</option>
-                <option value="Ouvert pour test">Ouvert pour test</option>
-                <option value="Fin de bobine">Fin de bobine</option>
-              </select>
-            </div>
-          </div>
-
           <div>
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
-              Ville pour remise en main propre
+              Prix de vente conseillé (€)
             </label>
             <input
-              type="text"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-indigo-500 text-white"
+              type="number"
+              step="0.5"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-indigo-500 text-white font-mono"
             />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
-              Note / Précision stockage
-            </label>
-            <input
-              type="text"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-indigo-500 text-white"
-            />
-          </div>
-
-          <div className="pt-2 border-t border-slate-800 flex flex-wrap gap-4">
-            <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-300">
-              <input
-                type="checkbox"
-                checked={pickup}
-                onChange={(e) => setPickup(e.target.checked)}
-                className="rounded bg-slate-950 border-slate-800 text-indigo-600 focus:ring-indigo-500"
-              />
-              Remise en main propre
-            </label>
-
-            <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-300">
-              <input
-                type="checkbox"
-                checked={shipping}
-                onChange={(e) => setShipping(e.target.checked)}
-                className="rounded bg-slate-950 border-slate-800 text-indigo-600 focus:ring-indigo-500"
-              />
-              Envoi possible
-            </label>
           </div>
         </div>
 
@@ -303,7 +222,7 @@ N'hésitez pas à me contacter si vous souhaitez grouper avec d'autres bobines p
 
             <textarea
               readOnly
-              rows={13}
+              rows={11}
               value={generateDescription()}
               className="w-full p-3.5 bg-slate-950 rounded-xl border border-slate-800 text-xs leading-relaxed text-slate-200 font-mono resize-none focus:outline-none"
             />
