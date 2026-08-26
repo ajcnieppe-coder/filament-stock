@@ -5,7 +5,7 @@ export async function GET() {
   try {
     const { data: links, error } = await supabase.from('supplier_links').select('*');
     if (error || !links) {
-      return NextResponse.json({ error: error?.message || 'No links found' }, { status: 400 });
+      return NextResponse.json({ error: error?.message || 'Aucun lien trouvé' }, { status: 400 });
     }
 
     const results = [];
@@ -13,36 +13,39 @@ export async function GET() {
     for (const item of links) {
       let isInStock = true;
       let statusNote = 'En stock';
-      let scrapedPrice = item.last_price;
+      let scrapedPrice = item.last_price || 0;
 
       try {
         const response = await fetch(item.url, {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
             'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Cache-Control': 'no-cache',
           },
-          cache: 'no-store'
+          cache: 'no-store',
         });
 
         if (response.ok) {
           const html = await response.text();
           const lowerHtml = html.toLowerCase();
 
-          // Détection rupture classique (Rupture de stock / Out of stock / Sold out)
+          // Détection des statuts de rupture chez Joybuy
           if (
             lowerHtml.includes('rupture de stock') ||
             lowerHtml.includes('épuisé') ||
             lowerHtml.includes('out of stock') ||
-            lowerHtml.includes('actuellement indisponible')
+            lowerHtml.includes('actuellement indisponible') ||
+            lowerHtml.includes('temporairement indisponible')
           ) {
             isInStock = false;
             statusNote = 'Rupture constatée';
           } else {
             isInStock = true;
-            statusNote = 'Disponible';
+            statusNote = 'En stock';
           }
 
-          // Extraction du prix si présent
+          // Extraction du prix affiché en euros (ex: 8,99 € ou 8.99 €)
           const priceMatch = html.match(/(\d+[\.,]\d{2})\s*€/);
           if (priceMatch) {
             scrapedPrice = parseFloat(priceMatch[1].replace(',', '.'));
@@ -51,10 +54,10 @@ export async function GET() {
           statusNote = `Erreur HTTP ${response.status}`;
         }
       } catch (err: any) {
-        statusNote = 'Erreur connexion fournisseur';
+        statusNote = 'Erreur réseau / connexion';
       }
 
-      // Mise à jour dans Supabase
+      // Mise à jour de la table supplier_links
       await supabase
         .from('supplier_links')
         .update({
@@ -65,7 +68,13 @@ export async function GET() {
         })
         .eq('id', item.id);
 
-      results.push({ id: item.id, label: item.label, is_in_stock: isInStock, price: scrapedPrice, statusNote });
+      results.push({
+        id: item.id,
+        label: item.label,
+        is_in_stock: isInStock,
+        price: scrapedPrice,
+        statusNote,
+      });
     }
 
     return NextResponse.json({ success: true, checked: results.length, data: results });
