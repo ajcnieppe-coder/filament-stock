@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from './supabase';
 import { 
   Package, ShoppingCart, TrendingUp, AlertTriangle, Plus, 
-  ArrowDownLeft, Lock, KeyRound, Trash2
+  ArrowDownLeft, Lock, KeyRound, Trash2, CheckCircle2, AlertCircle
 } from 'lucide-react';
 
 interface Product {
@@ -21,9 +21,13 @@ interface Product {
 
 interface PurchaseItem {
   id: string;
+  purchase_order_id?: string;
   product_id?: string;
   quantity: number;
   unit_cost: number;
+  order?: {
+    supplier?: string;
+  };
 }
 
 interface SaleItem {
@@ -66,6 +70,7 @@ export default function ActionsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [sales, setSales] = useState<SaleItem[]>([]);
   const [purchases, setPurchases] = useState<PurchaseItem[]>([]);
+  const [supplierLinks, setSupplierLinks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const todayStr = new Date().toISOString().split('T')[0];
@@ -73,18 +78,18 @@ export default function ActionsPage() {
   const [brand, setBrand] = useState('');
   const [material, setMaterial] = useState('PLA');
   const [color, setColor] = useState('');
-  const [defaultSellPrice, setDefaultSellPrice] = useState(0);
+  const [defaultSellPrice, setDefaultSellPrice] = useState(10);
 
   const [restockProduct, setRestockProduct] = useState('');
   const [restockQty, setRestockQty] = useState(1);
   const [restockCost, setRestockCost] = useState(0);
-  const [supplier, setSupplier] = useState('');
+  const [supplier, setSupplier] = useState('Joybuy');
   const [purchaseDate, setPurchaseDate] = useState(todayStr);
 
   const [platform, setPlatform] = useState('Leboncoin');
   const [saleDate, setSaleDate] = useState(todayStr);
   const [saleLines, setSaleLines] = useState<SaleLine[]>([
-    { productId: '', quantity: 1, unitPrice: 0 }
+    { productId: '', quantity: 1, unitPrice: 10 }
   ]);
 
   const appPassword = process.env.NEXT_PUBLIC_APP_PASSWORD;
@@ -120,10 +125,23 @@ export default function ActionsPage() {
         .order('color');
 
       const { data: items } = await supabase.from('sales_items').select('id, product_id, quantity');
-      const { data: purchaseItems } = await supabase.from('purchase_items').select('id, product_id, quantity, unit_cost');
+      const { data: purchaseItems } = await supabase.from('purchase_items').select('id, purchase_order_id, product_id, quantity, unit_cost');
+      const { data: purchaseOrders } = await supabase.from('purchase_orders').select('id, supplier');
+      const { data: supLinks } = await supabase.from('supplier_links').select('*');
 
       if (prodData) setProducts(prodData);
-      if (purchaseItems) setPurchases(purchaseItems);
+      if (supLinks) setSupplierLinks(supLinks);
+
+      if (purchaseItems) {
+        const formattedPurchases = purchaseItems.map((p) => {
+          const ord = purchaseOrders?.find((o) => o.id === p.purchase_order_id);
+          return {
+            ...p,
+            order: { supplier: ord?.supplier || 'Direct' }
+          };
+        });
+        setPurchases(formattedPurchases);
+      }
       if (items) setSales(items);
     } catch (err) {
       console.error(err);
@@ -154,6 +172,23 @@ export default function ActionsPage() {
     return totalQty > 0 ? (totalSpent / totalQty) : (product.avg_buy_price || 0);
   }
 
+  // Vérifie si la référence est spécifiquement issue/liée à Joybuy
+  function isJoybuyProduct(product: Product) {
+    const hasJoybuyLink = supplierLinks.some(l => 
+      l.supplier_name.toLowerCase().includes('joybuy') && 
+      (l.product_id === product.id || (product.brand.toLowerCase() === 'anycubic' && product.material.toUpperCase() === 'PETG'))
+    );
+    if (hasJoybuyLink) return true;
+
+    const prodPurchases = purchases.filter((p) => p.product_id === product.id);
+    if (prodPurchases.length > 0) {
+      const lastSup = prodPurchases[prodPurchases.length - 1].order?.supplier?.toLowerCase() || '';
+      return lastSup.includes('joybuy');
+    }
+
+    return product.brand.toLowerCase() === 'anycubic' && product.material.toUpperCase() === 'PETG';
+  }
+
   async function addProduct(e: React.FormEvent) {
     e.preventDefault();
     const { error } = await supabase.from('products').insert([
@@ -164,7 +199,7 @@ export default function ActionsPage() {
     } else {
       setBrand('');
       setColor('');
-      setDefaultSellPrice(0);
+      setDefaultSellPrice(10);
       fetchData();
     }
   }
@@ -177,7 +212,7 @@ export default function ActionsPage() {
 
     const { data: order, error: orderErr } = await supabase
       .from('purchase_orders')
-      .insert([{ supplier: supplier || 'Fournisseur direct', created_at: formattedDate }])
+      .insert([{ supplier: supplier || 'Joybuy', created_at: formattedDate }])
       .select()
       .single();
 
@@ -204,7 +239,6 @@ export default function ActionsPage() {
     alert('Achat enregistré avec succès !');
     setRestockQty(1);
     setRestockCost(0);
-    setSupplier('');
     fetchData();
   }
 
@@ -215,11 +249,11 @@ export default function ActionsPage() {
     nextLines[index] = {
       ...nextLines[index],
       productId: newProductId,
-      unitPrice: targetProd ? targetProd.default_sell_price : nextLines[index].unitPrice,
+      unitPrice: targetProd ? (targetProd.default_sell_price || 10) : nextLines[index].unitPrice,
     };
 
     if (newProductId && index === nextLines.length - 1) {
-      nextLines.push({ productId: '', quantity: 1, unitPrice: 0 });
+      nextLines.push({ productId: '', quantity: 1, unitPrice: 10 });
     }
 
     setSaleLines(nextLines);
@@ -239,14 +273,14 @@ export default function ActionsPage() {
 
   function removeSaleLine(index: number) {
     if (saleLines.length === 1) {
-      setSaleLines([{ productId: '', quantity: 1, unitPrice: 0 }]);
+      setSaleLines([{ productId: '', quantity: 1, unitPrice: 10 }]);
       return;
     }
     setSaleLines(saleLines.filter((_, i) => i !== index));
   }
 
   function addEmptySaleLine() {
-    setSaleLines([...saleLines, { productId: '', quantity: 1, unitPrice: 0 }]);
+    setSaleLines([...saleLines, { productId: '', quantity: 1, unitPrice: 10 }]);
   }
 
   async function recordMultiSale(e: React.FormEvent) {
@@ -292,7 +326,7 @@ export default function ActionsPage() {
     }
 
     alert(`${validLines.length} bobine(s) enregistrée(s) avec succès !`);
-    setSaleLines([{ productId: '', quantity: 1, unitPrice: 0 }]);
+    setSaleLines([{ productId: '', quantity: 1, unitPrice: 10 }]);
     fetchData();
   }
 
@@ -341,6 +375,12 @@ export default function ActionsPage() {
     .filter((l) => l.productId)
     .reduce((sum, l) => sum + (Number(l.quantity || 0) * Number(l.unitPrice || 0)), 0);
 
+  const selectedRestockProd = products.find((p) => p.id === restockProduct);
+  const selectedRestockStyle = selectedRestockProd ? getColorStyle(selectedRestockProd.color) : null;
+  const selectedRestockStock = selectedRestockProd ? getProductStock(selectedRestockProd.id) : 0;
+  const selectedRestockCump = selectedRestockProd ? getProductCUMP(selectedRestockProd) : 0;
+  const isJoybuyRestock = selectedRestockProd ? isJoybuyProduct(selectedRestockProd) : false;
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -359,6 +399,7 @@ export default function ActionsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* 1. CRÉATION PRODUIT */}
         <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4 shadow-sm">
           <h2 className="text-base font-bold flex items-center gap-2 text-indigo-300"><Plus size={18} /> 1. Créer une référence</h2>
           <form onSubmit={addProduct} className="space-y-3">
@@ -404,22 +445,60 @@ export default function ActionsPage() {
           </form>
         </div>
 
+        {/* 2. ACHAT */}
         <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4 shadow-sm">
           <h2 className="text-base font-bold flex items-center gap-2 text-cyan-300"><ArrowDownLeft size={18} /> 2. Enregistrer un achat</h2>
           <form onSubmit={recordRestock} className="space-y-3">
             <select
               className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-cyan-500 text-white"
               value={restockProduct}
-              onChange={(e) => setRestockProduct(e.target.value)}
+              onChange={(e) => {
+                const pId = e.target.value;
+                setRestockProduct(pId);
+                const targetP = products.find(p => p.id === pId);
+                if (targetP && isJoybuyProduct(targetP)) {
+                  setSupplier('Joybuy');
+                }
+              }}
               required
             >
               <option value="">Sélectionner la bobine reçue...</option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>
-                  [{p.material}] {p.brand} - {p.color} (Actuel: {getProductStock(p.id)})
+                  [{p.material}] {p.brand} - {p.color}
                 </option>
               ))}
             </select>
+
+            {/* BADGE D'INFO PRODUIT SÉLECTIONNÉ */}
+            {selectedRestockProd && (
+              <div className="p-3 bg-slate-950/90 rounded-xl border border-slate-800 text-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span 
+                      className="w-3 h-3 rounded-full border shadow-sm flex-shrink-0"
+                      style={{ backgroundColor: selectedRestockStyle?.dot, borderColor: selectedRestockStyle?.border }}
+                    />
+                    <span className="font-semibold text-white">
+                      {selectedRestockProd.material} {selectedRestockProd.color}
+                    </span>
+                  </div>
+
+                  {/* BADGE UNIQUEMENT POUR JOYBUY */}
+                  {isJoybuyRestock && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                      🟡 Joybuy
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between text-slate-400 border-t border-slate-900 pt-1.5 text-[11px]">
+                  <span>Stock actuel : <strong className="text-cyan-400 font-mono">{selectedRestockStock}</strong></span>
+                  <span>CUMP actuel : <strong className="text-slate-300 font-mono">{selectedRestockCump.toFixed(2)} €</strong></span>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-2">
               <input
                 type="number"
@@ -434,7 +513,7 @@ export default function ActionsPage() {
                 type="number"
                 step="0.01"
                 placeholder="Coût unit. (€)"
-                className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-cyan-500 text-white"
+                className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-cyan-500 text-white font-mono"
                 value={restockCost || ''}
                 onChange={(e) => setRestockCost(Number(e.target.value))}
                 required
@@ -448,27 +527,31 @@ export default function ActionsPage() {
                 onChange={(e) => setPurchaseDate(e.target.value)}
                 required
               />
-              <input
-                type="text"
-                placeholder="Fournisseur (optionnel)"
+              <select
                 className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-cyan-500 text-white"
                 value={supplier}
                 onChange={(e) => setSupplier(e.target.value)}
-              />
+              >
+                <option value="Joybuy">Joybuy</option>
+                <option value="AliExpress">AliExpress</option>
+                <option value="Amazon">Amazon</option>
+                <option value="Direct / Autre">Autre</option>
+              </select>
             </div>
-            <button type="submit" className="w-full bg-cyan-600 hover:bg-cyan-500 font-semibold py-2.5 rounded-xl transition text-white">
+            <button type="submit" className="w-full bg-cyan-600 hover:bg-cyan-500 font-semibold py-2.5 rounded-xl transition text-white shadow-lg shadow-cyan-600/20">
               Entrer en stock (+ CUMP)
             </button>
           </form>
         </div>
 
+        {/* 3. VENTE */}
         <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4 shadow-sm">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold flex items-center gap-2 text-emerald-300">
               <ShoppingCart size={18} /> 3. Enregistrer une vente
             </h2>
             {currentSaleTotal > 0 && (
-              <span className="text-xs font-bold font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20">
+              <span className="text-xs font-bold font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
                 Total : {currentSaleTotal.toFixed(2)} €
               </span>
             )}
@@ -499,9 +582,12 @@ export default function ActionsPage() {
               {saleLines.map((line, idx) => {
                 const selectedProd = products.find((p) => p.id === line.productId);
                 const cStyle = selectedProd ? getColorStyle(selectedProd.color) : null;
+                const stockQty = selectedProd ? getProductStock(selectedProd.id) : 0;
+                const cumpVal = selectedProd ? getProductCUMP(selectedProd) : 0;
+                const isJoybuy = selectedProd ? isJoybuyProduct(selectedProd) : false;
 
                 return (
-                  <div key={idx} className="p-2.5 bg-slate-950/80 rounded-xl border border-slate-800/90 space-y-2">
+                  <div key={idx} className="p-3 bg-slate-950/80 rounded-xl border border-slate-800/90 space-y-2.5">
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] font-bold text-slate-400">#{idx + 1}</span>
                       <select
@@ -512,7 +598,7 @@ export default function ActionsPage() {
                         <option value="">Sélectionner une bobine...</option>
                         {products.map((p) => (
                           <option key={p.id} value={p.id}>
-                            [{p.material}] {p.brand} - {p.color} (Stock: {getProductStock(p.id)})
+                            [{p.material}] {p.brand} - {p.color}
                           </option>
                         ))}
                       </select>
@@ -529,22 +615,41 @@ export default function ActionsPage() {
                     </div>
 
                     {selectedProd && (
-                      <div className="flex items-center gap-2 text-[11px] text-slate-400 pl-4">
-                        <span 
-                          className="w-2.5 h-2.5 rounded-full border shadow-sm flex-shrink-0"
-                          style={{ backgroundColor: cStyle?.dot, borderColor: cStyle?.border }}
-                        />
-                        <span>Stock dispo : <strong className="text-slate-200">{getProductStock(selectedProd.id)}</strong></span>
-                        <span className="ml-auto font-mono text-slate-500">CUMP : {getProductCUMP(selectedProd).toFixed(2)} €</span>
+                      <div className="flex flex-wrap items-center justify-between gap-1.5 p-2 bg-slate-900 rounded-lg border border-slate-800/80 text-[11px]">
+                        <div className="flex items-center gap-1.5">
+                          <span 
+                            className="w-2.5 h-2.5 rounded-full border shadow-sm flex-shrink-0"
+                            style={{ backgroundColor: cStyle?.dot, borderColor: cStyle?.border }}
+                          />
+                          <span className="text-slate-300 font-medium">{selectedProd.color}</span>
+                          {isJoybuy && (
+                            <span className="text-[9px] px-1.5 py-0.2 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded">
+                              Joybuy
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {stockQty > 0 ? (
+                            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">
+                              <CheckCircle2 size={11} /> {stockQty} en stock
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-400 font-bold border border-rose-500/20">
+                              <AlertCircle size={11} /> Rupture
+                            </span>
+                          )}
+                          <span className="text-slate-500 font-mono">CUMP {cumpVal.toFixed(2)}€</span>
+                        </div>
                       </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-2 pl-4">
+                    <div className="grid grid-cols-2 gap-2">
                       <input
                         type="number"
                         min="1"
                         placeholder="Qté"
-                        className="bg-slate-900 border border-slate-800 p-1.5 rounded-lg text-xs outline-none focus:border-emerald-500 text-white"
+                        className="bg-slate-900 border border-slate-800 p-2 rounded-lg text-xs outline-none focus:border-emerald-500 text-white"
                         value={line.quantity}
                         onChange={(e) => handleLineQuantityChange(idx, Number(e.target.value))}
                         disabled={!line.productId}
@@ -553,7 +658,7 @@ export default function ActionsPage() {
                         type="number"
                         step="0.01"
                         placeholder="Prix unit. (€)"
-                        className="bg-slate-900 border border-slate-800 p-1.5 rounded-lg text-xs outline-none focus:border-emerald-500 text-white font-mono"
+                        className="bg-slate-900 border border-slate-800 p-2 rounded-lg text-xs outline-none focus:border-emerald-500 text-white font-mono"
                         value={line.unitPrice || ''}
                         onChange={(e) => handleLinePriceChange(idx, Number(e.target.value))}
                         disabled={!line.productId}
