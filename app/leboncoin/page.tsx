@@ -37,7 +37,7 @@ export default function LeboncoinPage() {
   const [loading, setLoading] = useState(true);
 
   const [productId, setProductId] = useState<string>('');
-  const [price, setPrice] = useState<string>('15');
+  const [price, setPrice] = useState<string>('10');
 
   const [copiedTitle, setCopiedTitle] = useState<boolean>(false);
   const [copiedBody, setCopiedBody] = useState<boolean>(false);
@@ -63,7 +63,7 @@ export default function LeboncoinPage() {
         setProducts(prodData);
         if (prodData.length > 0) {
           setProductId(prodData[0].id);
-          setPrice(prodData[0].default_sell_price ? String(prodData[0].default_sell_price) : '15');
+          setPrice(prodData[0].default_sell_price ? String(prodData[0].default_sell_price) : '10');
         }
       }
       if (purchaseItems) setPurchases(purchaseItems);
@@ -100,16 +100,20 @@ export default function LeboncoinPage() {
   const generateDescription = () => {
     if (!selectedProduct) return '';
 
-    return `Vends bobine ${selectedProduct.brand} ${selectedProduct.material} ${selectedProduct.color} compatible pour toutes les imprimantes 3D (Anycubic, Bambu Lab, Creality etc)
+    return `Vends bobine ${selectedProduct.brand} ${selectedProduct.material} ${selectedProduct.color} compatible pour toutes les imprimantes 3D (Anycubic, Bambu Lab, Creality etc).
 
 🔹 CARACTÉRISTIQUES :
 • Marque : ${selectedProduct.brand}
 • Type de filament : ${selectedProduct.material} (Diamètre standard 1.75mm)
 • Couleur : ${selectedProduct.color}
 • État : Neuf sous blister
-Possibilité de faire des lots différents et panacher les couleurs si besoin. J'ai du PLA et du PETG sur mon compte
 
-Envoie rapide via Mondial Relay via l'achat protégé sur LeBoncoin ou remise en main propre chez moi à Nieppe. Pour toute questions, n'hésitez pas`;
+Possibilité de faire des lots différents et panacher les couleurs si besoin. J'ai du PLA et du PETG sur mon compte.
+Toutes les bobines sur mon compte sont à 10€ l'unité, même en lot.
+
+Envoi rapide via Mondial Relay avec l'achat protégé sur Leboncoin ou remise en main propre chez moi à Nieppe.
+
+Pour toute question, n'hésitez pas !`;
   };
 
   const handleCopyTitle = async () => {
@@ -222,7 +226,7 @@ Envoie rapide via Mondial Relay via l'achat protégé sur LeBoncoin ou remise en
 
             <textarea
               readOnly
-              rows={11}
+              rows={13}
               value={generateDescription()}
               className="w-full p-3.5 bg-slate-950 rounded-xl border border-slate-800 text-xs leading-relaxed text-slate-200 font-mono resize-none focus:outline-none"
             />
