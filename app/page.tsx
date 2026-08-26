@@ -55,24 +55,32 @@ interface SupplierLink {
   product_id?: string;
 }
 
-function getColorStyle(colorName: string) {
-  const c = (colorName || '').trim().toLowerCase();
-  if (c.includes('noir') || c.includes('black')) return { bg: '#0f172a', border: '#475569', text: '#ffffff', dot: '#1e293b' };
-  if (c.includes('blanc') || c.includes('white')) return { bg: '#f8fafc', border: '#cbd5e1', text: '#0f172a', dot: '#e2e8f0' };
-  if (c.includes('rouge') || c.includes('red')) return { bg: '#dc2626', border: '#ef4444', text: '#ffffff', dot: '#ef4444' };
-  if (c.includes('cyan') || c.includes('bleu cyan')) return { bg: '#06b6d4', border: '#22d3ee', text: '#ffffff', dot: '#06b6d4' };
-  if (c.includes('bleu') || c.includes('blue')) return { bg: '#2563eb', border: '#3b82f6', text: '#ffffff', dot: '#2563eb' };
-  if (c.includes('jaune') || c.includes('yellow')) return { bg: '#eab308', border: '#fde047', text: '#713f12', dot: '#eab308' };
-  if (c.includes('orange')) return { bg: '#ea580c', border: '#f97316', text: '#ffffff', dot: '#f97316' };
-  if (c.includes('vert') || c.includes('green')) return { bg: '#16a34a', border: '#22c55e', text: '#ffffff', dot: '#16a34a' };
-  if (c.includes('violet') || c.includes('purple')) return { bg: '#9333ea', border: '#a855f7', text: '#ffffff', dot: '#9333ea' };
-  if (c.includes('rose') || c.includes('pink')) return { bg: '#db2777', border: '#f472b6', text: '#ffffff', dot: '#ec4899' };
-  if (c.includes('argent') || c.includes('silver')) return { bg: '#94a3b8', border: '#cbd5e1', text: '#0f172a', dot: '#cbd5e1' };
-  if (c.includes('gris') || c.includes('grey') || c.includes('gray')) return { bg: '#64748b', border: '#94a3b8', text: '#ffffff', dot: '#64748b' };
-  if (c.includes('beige') || c.includes('skin') || c.includes('glace')) return { bg: '#d6c7a1', border: '#e2d9bc', text: '#451a03', dot: '#d6c7a1' };
-  if (c.includes('or') || c.includes('gold')) return { bg: '#ca8a04', border: '#eab308', text: '#ffffff', dot: '#d97706' };
-  if (c.includes('marron') || c.includes('brown')) return { bg: '#78350f', border: '#92400e', text: '#ffffff', dot: '#78350f' };
-  return { bg: '#475569', border: '#64748b', text: '#ffffff', dot: '#818cf8' };
+// Fonction de couleur ultra complète et tolérante
+function getColorHex(colorName: string): { bg: string; border: string } {
+  const c = (colorName || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, ''); // supprime les accents
+
+  if (c.includes('noir') || c.includes('black')) return { bg: '#000000', border: '#475569' };
+  if (c.includes('blanc') || c.includes('white')) return { bg: '#ffffff', border: '#cbd5e1' };
+  if (c.includes('rouge') || c.includes('red')) return { bg: '#ef4444', border: '#b91c1c' };
+  if (c.includes('cyan') || c.includes('bleu cyan') || c.includes('sky')) return { bg: '#06b6d4', border: '#0891b2' };
+  if (c.includes('bleu') || c.includes('blue')) return { bg: '#2563eb', border: '#1d4ed8' };
+  if (c.includes('jaune') || c.includes('yellow')) return { bg: '#eab308', border: '#ca8a04' };
+  if (c.includes('orange')) return { bg: '#f97316', border: '#c2410c' };
+  if (c.includes('vert') || c.includes('green')) return { bg: '#22c55e', border: '#15803d' };
+  if (c.includes('violet') || c.includes('purple')) return { bg: '#a855f7', border: '#7e22ce' };
+  if (c.includes('rose') || c.includes('pink')) return { bg: '#ec4899', border: '#be185d' };
+  if (c.includes('argent') || c.includes('silver')) return { bg: '#cbd5e1', border: '#94a3b8' };
+  if (c.includes('gris') || c.includes('grey') || c.includes('gray')) return { bg: '#64748b', border: '#475569' };
+  if (c.includes('beige') || c.includes('skin') || c.includes('glace')) return { bg: '#d6c7a1', border: '#a89a74' };
+  if (c.includes('or') || c.includes('gold')) return { bg: '#eab308', border: '#a16207' };
+  if (c.includes('marron') || c.includes('brown')) return { bg: '#78350f', border: '#451a03' };
+  if (c.includes('transparent') || c.includes('clear')) return { bg: 'rgba(255,255,255,0.2)', border: '#94a3b8' };
+  
+  return { bg: '#6366f1', border: '#4338ca' };
 }
 
 export default function ActionsPage() {
@@ -206,7 +214,7 @@ export default function ActionsPage() {
     const brandLower = (product.brand || '').toLowerCase();
     const matUpper = (product.material || '').toUpperCase();
 
-    if (brandLower.includes('anycubic') && matUpper.includes('PETG')) return true;
+    if (brandLower.includes('anycubic') || brandLower.includes('cailab')) return true;
 
     const hasJoybuyLink = supplierLinks.some(l => 
       (l.supplier_name || '').toLowerCase().includes('joybuy') && 
@@ -405,7 +413,7 @@ export default function ActionsPage() {
     .reduce((sum, l) => sum + (Number(l.quantity || 0) * Number(l.unitPrice || 0)), 0);
 
   const selectedRestockProd = products.find((p) => p.id === restockProduct);
-  const selectedRestockStyle = selectedRestockProd ? getColorStyle(selectedRestockProd.color) : null;
+  const selectedRestockColor = selectedRestockProd ? getColorHex(selectedRestockProd.color) : { bg: '#6366f1', border: '#4338ca' };
   const selectedRestockStock = selectedRestockProd ? getProductStock(selectedRestockProd.id) : 0;
   const selectedRestockCump = selectedRestockProd ? getProductCUMP(selectedRestockProd) : 0;
   const isJoybuyRestock = selectedRestockProd ? isJoybuyProduct(selectedRestockProd) : false;
@@ -536,12 +544,22 @@ export default function ActionsPage() {
             {selectedRestockProd && (
               <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2.5">
+                    {/* PASTILLE DE COULEUR VISIBLE */}
                     <span 
-                      className="w-3.5 h-3.5 rounded-full border shadow-sm flex-shrink-0"
-                      style={{ backgroundColor: selectedRestockStyle?.dot, borderColor: selectedRestockStyle?.border }}
+                      style={{
+                        display: 'inline-block',
+                        width: '16px',
+                        height: '16px',
+                        minWidth: '16px',
+                        minHeight: '16px',
+                        borderRadius: '9999px',
+                        backgroundColor: selectedRestockColor.bg,
+                        border: `2px solid ${selectedRestockColor.border}`,
+                        boxShadow: '0 0 6px rgba(0,0,0,0.6)'
+                      }}
                     />
-                    <span className="font-semibold text-white">
+                    <span className="font-semibold text-white text-sm">
                       {selectedRestockProd.material} {selectedRestockProd.color}
                     </span>
                   </div>
@@ -642,7 +660,7 @@ export default function ActionsPage() {
             <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
               {saleLines.map((line, idx) => {
                 const selectedProd = products.find((p) => p.id === line.productId);
-                const cStyle = selectedProd ? getColorStyle(selectedProd.color) : null;
+                const colorHex = selectedProd ? getColorHex(selectedProd.color) : { bg: '#6366f1', border: '#4338ca' };
                 const stockQty = selectedProd ? getProductStock(selectedProd.id) : 0;
                 const cumpVal = selectedProd ? getProductCUMP(selectedProd) : 0;
                 const isJoy = selectedProd ? isJoybuyProduct(selectedProd) : false;
@@ -677,10 +695,19 @@ export default function ActionsPage() {
 
                     {selectedProd && (
                       <div className="flex flex-wrap items-center justify-between gap-1.5 p-2 bg-slate-900 rounded-lg border border-slate-800 text-[11px]">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-2">
                           <span 
-                            className="w-3 h-3 rounded-full border shadow-sm flex-shrink-0"
-                            style={{ backgroundColor: cStyle?.dot, borderColor: cStyle?.border }}
+                            style={{
+                              display: 'inline-block',
+                              width: '14px',
+                              height: '14px',
+                              minWidth: '14px',
+                              minHeight: '14px',
+                              borderRadius: '9999px',
+                              backgroundColor: colorHex.bg,
+                              border: `2px solid ${colorHex.border}`,
+                              boxShadow: '0 0 5px rgba(0,0,0,0.6)'
+                            }}
                           />
                           <span className="text-slate-200 font-semibold">{selectedProd.color}</span>
                           {isJoy && (
