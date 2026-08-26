@@ -55,13 +55,12 @@ interface SupplierLink {
   product_id?: string;
 }
 
-// Fonction de couleur ultra complète et tolérante
 function getColorHex(colorName: string): { bg: string; border: string } {
   const c = (colorName || '')
     .trim()
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, ''); // supprime les accents
+    .replace(/[\u0300-\u036f]/g, '');
 
   if (c.includes('noir') || c.includes('black')) return { bg: '#000000', border: '#475569' };
   if (c.includes('blanc') || c.includes('white')) return { bg: '#ffffff', border: '#cbd5e1' };
@@ -209,21 +208,32 @@ export default function ActionsPage() {
     return totalQty > 0 ? (totalSpent / totalQty) : (product.avg_buy_price || 0);
   }
 
-  function isJoybuyProduct(product: Product | undefined) {
-    if (!product) return false;
-    const brandLower = (product.brand || '').toLowerCase();
-    const matUpper = (product.material || '').toUpperCase();
+  // Vérifie si la référence est surveillée via Joybuy
+  function getJoybuyStatus(product: Product | undefined): { isJoybuy: boolean; inStock: boolean } {
+    if (!product) return { isJoybuy: false, inStock: false };
 
-    if (brandLower.includes('anycubic') || brandLower.includes('cailab')) return true;
+    const b = (product.brand || '').toLowerCase();
+    const m = (product.material || '').toUpperCase();
 
-    const hasJoybuyLink = supplierLinks.some(l => 
-      (l.supplier_name || '').toLowerCase().includes('joybuy') && 
-      l.product_id === product.id
-    );
-    if (hasJoybuyLink) return true;
+    // 1. Anycubic PLA
+    if (b.includes('anycubic') && m.includes('PLA')) {
+      const link = supplierLinks.find(l => l.url?.includes('100187736') || l.label?.includes('PLA Basic'));
+      return { isJoybuy: true, inStock: link ? link.is_in_stock : true };
+    }
 
-    const prodPurchases = purchases.filter((p) => p.product_id === product.id);
-    return prodPurchases.some(p => (p.order?.supplier || '').toLowerCase().includes('joybuy'));
+    // 2. Anycubic PETG
+    if (b.includes('anycubic') && m.includes('PETG')) {
+      const link = supplierLinks.find(l => l.url?.includes('100392240') || l.label?.includes('PETG'));
+      return { isJoybuy: true, inStock: link ? link.is_in_stock : true };
+    }
+
+    // 3. Cailab
+    if (b.includes('cailab')) {
+      const link = supplierLinks.find(l => l.url?.includes('10424851') || l.label?.includes('Cailab'));
+      return { isJoybuy: true, inStock: link ? link.is_in_stock : true };
+    }
+
+    return { isJoybuy: false, inStock: false };
   }
 
   async function addProduct(e: React.FormEvent) {
@@ -416,7 +426,7 @@ export default function ActionsPage() {
   const selectedRestockColor = selectedRestockProd ? getColorHex(selectedRestockProd.color) : { bg: '#6366f1', border: '#4338ca' };
   const selectedRestockStock = selectedRestockProd ? getProductStock(selectedRestockProd.id) : 0;
   const selectedRestockCump = selectedRestockProd ? getProductCUMP(selectedRestockProd) : 0;
-  const isJoybuyRestock = selectedRestockProd ? isJoybuyProduct(selectedRestockProd) : false;
+  const restockJoybuy = selectedRestockProd ? getJoybuyStatus(selectedRestockProd) : { isJoybuy: false, inStock: false };
 
   return (
     <div className="space-y-6">
@@ -526,7 +536,7 @@ export default function ActionsPage() {
                 const pId = e.target.value;
                 setRestockProduct(pId);
                 const targetP = products.find(p => p.id === pId);
-                if (targetP && isJoybuyProduct(targetP)) {
+                if (targetP && getJoybuyStatus(targetP).isJoybuy) {
                   setSupplier('Joybuy');
                 }
               }}
@@ -540,12 +550,12 @@ export default function ActionsPage() {
               ))}
             </select>
 
-            {/* ENCART BADGE DÈS QU'UNE BOBINE EST SÉLECTIONNÉE */}
+            {/* ENCART DÉTAIL PRODUIT AVEC ÉTAT EN STOCK / RUPTURE JOYBUY */}
             {selectedRestockProd && (
               <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    {/* PASTILLE DE COULEUR VISIBLE */}
+                    {/* PASTILLE DE COULEUR PHYSIQUE */}
                     <span 
                       style={{
                         display: 'inline-block',
@@ -564,15 +574,22 @@ export default function ActionsPage() {
                     </span>
                   </div>
 
-                  {isJoybuyRestock && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                      🟡 Joybuy
-                    </span>
+                  {/* BADGE ÉTAT JOYBUY DYNAMIQUE (VERT SI DISPO, ROUGE SI RUPTURE) */}
+                  {restockJoybuy.isJoybuy && (
+                    restockJoybuy.inStock ? (
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Dispo Joybuy
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping"></span> Rupture Joybuy
+                      </span>
+                    )
                   )}
                 </div>
 
                 <div className="flex items-center justify-between text-slate-400 border-t border-slate-900 pt-1.5 text-[11px]">
-                  <span>Stock actuel : <strong className="text-cyan-400 font-mono">{selectedRestockStock}</strong></span>
+                  <span>Mon stock réel : <strong className="text-cyan-400 font-mono">{selectedRestockStock}</strong></span>
                   <span>CUMP actuel : <strong className="text-slate-300 font-mono">{selectedRestockCump.toFixed(2)} €</strong></span>
                 </div>
               </div>
@@ -663,7 +680,7 @@ export default function ActionsPage() {
                 const colorHex = selectedProd ? getColorHex(selectedProd.color) : { bg: '#6366f1', border: '#4338ca' };
                 const stockQty = selectedProd ? getProductStock(selectedProd.id) : 0;
                 const cumpVal = selectedProd ? getProductCUMP(selectedProd) : 0;
-                const isJoy = selectedProd ? isJoybuyProduct(selectedProd) : false;
+                const saleJoybuy = selectedProd ? getJoybuyStatus(selectedProd) : { isJoybuy: false, inStock: false };
 
                 return (
                   <div key={idx} className="p-3 bg-slate-950/80 rounded-xl border border-slate-800/90 space-y-2.5">
@@ -710,10 +727,18 @@ export default function ActionsPage() {
                             }}
                           />
                           <span className="text-slate-200 font-semibold">{selectedProd.color}</span>
-                          {isJoy && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.2 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded">
-                              Joybuy
-                            </span>
+                          
+                          {/* BADGE JOYBUY EN VENTE */}
+                          {saleJoybuy.isJoybuy && (
+                            saleJoybuy.inStock ? (
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded">
+                                Dispo Joybuy
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 bg-rose-500/10 text-rose-400 border border-rose-500/30 rounded">
+                                Rupture Joybuy
+                              </span>
+                            )
                           )}
                         </div>
 
