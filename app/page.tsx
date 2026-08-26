@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from './supabase';
 import { 
   Package, ShoppingCart, TrendingUp, AlertTriangle, Plus, 
-  ArrowDownLeft, Lock, KeyRound, Trash2, CheckCircle2, AlertCircle
+  ArrowDownLeft, Lock, KeyRound, Trash2, CheckCircle2, AlertCircle,
+  RefreshCw, Radio
 } from 'lucide-react';
 
 interface Product {
@@ -42,6 +43,18 @@ interface SaleLine {
   unitPrice: number;
 }
 
+interface SupplierLink {
+  id: string;
+  supplier_name: string;
+  url: string;
+  label: string;
+  is_in_stock: boolean;
+  last_price: number;
+  last_checked: string;
+  status_note: string;
+  product_id?: string;
+}
+
 function getColorStyle(colorName: string) {
   const c = (colorName || '').trim().toLowerCase();
   if (c.includes('noir') || c.includes('black')) return { bg: '#0f172a', border: '#475569', text: '#ffffff', dot: '#1e293b' };
@@ -70,8 +83,9 @@ export default function ActionsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [sales, setSales] = useState<SaleItem[]>([]);
   const [purchases, setPurchases] = useState<PurchaseItem[]>([]);
-  const [supplierLinks, setSupplierLinks] = useState<any[]>([]);
+  const [supplierLinks, setSupplierLinks] = useState<SupplierLink[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isScanning, setIsScanning] = useState(false);
 
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -149,6 +163,21 @@ export default function ActionsPage() {
     setLoading(false);
   }
 
+  async function runManualScan() {
+    setIsScanning(true);
+    try {
+      const res = await fetch('/api/cron/check-stock', { cache: 'no-store' });
+      if (res.ok) {
+        await fetchData();
+      } else {
+        alert('Erreur lors du scan');
+      }
+    } catch (e: any) {
+      alert('Erreur scan : ' + e.message);
+    }
+    setIsScanning(false);
+  }
+
   function getProductPurchased(productId: string) {
     return purchases
       .filter((p) => p.product_id === productId)
@@ -172,21 +201,21 @@ export default function ActionsPage() {
     return totalQty > 0 ? (totalSpent / totalQty) : (product.avg_buy_price || 0);
   }
 
-  // Vérifie si la référence est spécifiquement issue/liée à Joybuy
-  function isJoybuyProduct(product: Product) {
+  function isJoybuyProduct(product: Product | undefined) {
+    if (!product) return false;
+    const brandLower = (product.brand || '').toLowerCase();
+    const matUpper = (product.material || '').toUpperCase();
+
+    if (brandLower.includes('anycubic') && matUpper.includes('PETG')) return true;
+
     const hasJoybuyLink = supplierLinks.some(l => 
-      l.supplier_name.toLowerCase().includes('joybuy') && 
-      (l.product_id === product.id || (product.brand.toLowerCase() === 'anycubic' && product.material.toUpperCase() === 'PETG'))
+      (l.supplier_name || '').toLowerCase().includes('joybuy') && 
+      l.product_id === product.id
     );
     if (hasJoybuyLink) return true;
 
     const prodPurchases = purchases.filter((p) => p.product_id === product.id);
-    if (prodPurchases.length > 0) {
-      const lastSup = prodPurchases[prodPurchases.length - 1].order?.supplier?.toLowerCase() || '';
-      return lastSup.includes('joybuy');
-    }
-
-    return product.brand.toLowerCase() === 'anycubic' && product.material.toUpperCase() === 'PETG';
+    return prodPurchases.some(p => (p.order?.supplier || '').toLowerCase().includes('joybuy'));
   }
 
   async function addProduct(e: React.FormEvent) {
@@ -383,6 +412,38 @@ export default function ActionsPage() {
 
   return (
     <div className="space-y-6">
+      {/* SECTION VEILLE STOCK FOURNISSEUR */}
+      {supplierLinks.length > 0 && (
+        <div className="bg-slate-900/90 p-4 rounded-2xl border border-slate-800 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+              <Radio size={20} className={isScanning ? 'animate-pulse' : ''} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-white">Veille Stock Fournisseurs</span>
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-semibold border border-slate-700">
+                  {supplierLinks.filter(s => s.is_in_stock).length}/{supplierLinks.length} Dispo
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                Dernière vérification : {supplierLinks[0]?.last_checked ? new Date(supplierLinks[0].last_checked).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'Jamais'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={runManualScan}
+            disabled={isScanning}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition disabled:opacity-50"
+          >
+            <RefreshCw size={13} className={isScanning ? 'animate-spin' : ''} />
+            {isScanning ? 'Scan en cours...' : 'Scanner maintenant'}
+          </button>
+        </div>
+      )}
+
+      {/* KPI EN-TÊTE */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 shadow-sm">
           <div className="flex items-center gap-3 text-slate-400 mb-1 text-sm"><Package size={18} className="text-indigo-400" /> Bobines en stock</div>
@@ -398,6 +459,7 @@ export default function ActionsPage() {
         </div>
       </div>
 
+      {/* FORMULAIRES */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 1. CRÉATION PRODUIT */}
         <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4 shadow-sm">
@@ -450,7 +512,7 @@ export default function ActionsPage() {
           <h2 className="text-base font-bold flex items-center gap-2 text-cyan-300"><ArrowDownLeft size={18} /> 2. Enregistrer un achat</h2>
           <form onSubmit={recordRestock} className="space-y-3">
             <select
-              className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-cyan-500 text-white"
+              className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-cyan-500 text-white font-medium"
               value={restockProduct}
               onChange={(e) => {
                 const pId = e.target.value;
@@ -463,20 +525,23 @@ export default function ActionsPage() {
               required
             >
               <option value="">Sélectionner la bobine reçue...</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  [{p.material}] {p.brand} - {p.color}
-                </option>
-              ))}
+              {products.map((p) => {
+                const isJoy = isJoybuyProduct(p);
+                return (
+                  <option key={p.id} value={p.id}>
+                    [{p.material}] {p.brand} - {p.color} {isJoy ? '★ [Joybuy]' : ''}
+                  </option>
+                );
+              })}
             </select>
 
-            {/* BADGE D'INFO PRODUIT SÉLECTIONNÉ */}
+            {/* ENCART BADGE DÈS QU'UNE BOBINE EST SÉLECTIONNÉE */}
             {selectedRestockProd && (
-              <div className="p-3 bg-slate-950/90 rounded-xl border border-slate-800 text-xs space-y-2">
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span 
-                      className="w-3 h-3 rounded-full border shadow-sm flex-shrink-0"
+                      className="w-3.5 h-3.5 rounded-full border shadow-sm flex-shrink-0"
                       style={{ backgroundColor: selectedRestockStyle?.dot, borderColor: selectedRestockStyle?.border }}
                     />
                     <span className="font-semibold text-white">
@@ -484,9 +549,8 @@ export default function ActionsPage() {
                     </span>
                   </div>
 
-                  {/* BADGE UNIQUEMENT POUR JOYBUY */}
                   {isJoybuyRestock && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30">
                       🟡 Joybuy
                     </span>
                   )}
@@ -584,23 +648,26 @@ export default function ActionsPage() {
                 const cStyle = selectedProd ? getColorStyle(selectedProd.color) : null;
                 const stockQty = selectedProd ? getProductStock(selectedProd.id) : 0;
                 const cumpVal = selectedProd ? getProductCUMP(selectedProd) : 0;
-                const isJoybuy = selectedProd ? isJoybuyProduct(selectedProd) : false;
+                const isJoy = selectedProd ? isJoybuyProduct(selectedProd) : false;
 
                 return (
                   <div key={idx} className="p-3 bg-slate-950/80 rounded-xl border border-slate-800/90 space-y-2.5">
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] font-bold text-slate-400">#{idx + 1}</span>
                       <select
-                        className="w-full bg-slate-900 border border-slate-800 p-2 rounded-lg text-xs outline-none focus:border-emerald-500 text-white"
+                        className="w-full bg-slate-900 border border-slate-800 p-2 rounded-lg text-xs outline-none focus:border-emerald-500 text-white font-medium"
                         value={line.productId}
                         onChange={(e) => handleLineProductChange(idx, e.target.value)}
                       >
                         <option value="">Sélectionner une bobine...</option>
-                        {products.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            [{p.material}] {p.brand} - {p.color}
-                          </option>
-                        ))}
+                        {products.map((p) => {
+                          const isJ = isJoybuyProduct(p);
+                          return (
+                            <option key={p.id} value={p.id}>
+                              [{p.material}] {p.brand} - {p.color} {isJ ? '★ [Joybuy]' : ''}
+                            </option>
+                          );
+                        })}
                       </select>
                       {saleLines.length > 1 && (
                         <button
@@ -615,15 +682,15 @@ export default function ActionsPage() {
                     </div>
 
                     {selectedProd && (
-                      <div className="flex flex-wrap items-center justify-between gap-1.5 p-2 bg-slate-900 rounded-lg border border-slate-800/80 text-[11px]">
+                      <div className="flex flex-wrap items-center justify-between gap-1.5 p-2 bg-slate-900 rounded-lg border border-slate-800 text-[11px]">
                         <div className="flex items-center gap-1.5">
                           <span 
-                            className="w-2.5 h-2.5 rounded-full border shadow-sm flex-shrink-0"
+                            className="w-3 h-3 rounded-full border shadow-sm flex-shrink-0"
                             style={{ backgroundColor: cStyle?.dot, borderColor: cStyle?.border }}
                           />
-                          <span className="text-slate-300 font-medium">{selectedProd.color}</span>
-                          {isJoybuy && (
-                            <span className="text-[9px] px-1.5 py-0.2 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded">
+                          <span className="text-slate-200 font-semibold">{selectedProd.color}</span>
+                          {isJoy && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded">
                               Joybuy
                             </span>
                           )}
