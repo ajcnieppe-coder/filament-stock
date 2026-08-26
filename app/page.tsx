@@ -525,14 +525,11 @@ export default function ActionsPage() {
               required
             >
               <option value="">Sélectionner la bobine reçue...</option>
-              {products.map((p) => {
-                const isJoy = isJoybuyProduct(p);
-                return (
-                  <option key={p.id} value={p.id}>
-                    [{p.material}] {p.brand} - {p.color} {isJoy ? '★ [Joybuy]' : ''}
-                  </option>
-                );
-              })}
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  [{p.material}] {p.brand} - {p.color}
+                </option>
+              ))}
             </select>
 
             {/* ENCART BADGE DÈS QU'UNE BOBINE EST SÉLECTIONNÉE */}
@@ -660,14 +657,11 @@ export default function ActionsPage() {
                         onChange={(e) => handleLineProductChange(idx, e.target.value)}
                       >
                         <option value="">Sélectionner une bobine...</option>
-                        {products.map((p) => {
-                          const isJ = isJoybuyProduct(p);
-                          return (
-                            <option key={p.id} value={p.id}>
-                              [{p.material}] {p.brand} - {p.color} {isJ ? '★ [Joybuy]' : ''}
-                            </option>
-                          );
-                        })}
+                        {products.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            [{p.material}] {p.brand} - {p.color}
+                          </option>
+                        ))}
                       </select>
                       {saleLines.length > 1 && (
                         <button
