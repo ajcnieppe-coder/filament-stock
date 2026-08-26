@@ -5,7 +5,8 @@ import { supabase } from './supabase';
 import { 
   Package, ShoppingCart, TrendingUp, AlertTriangle, Plus, 
   ArrowDownLeft, LayoutDashboard, Boxes, BarChart3, DollarSign, Wallet, ArrowDownRight,
-  Lock, KeyRound, LogOut, Trash2, Edit2, History, X, Check, PieChart, Percent, Tag
+  Lock, KeyRound, LogOut, Trash2, Edit2, History, X, Check, PieChart, Percent, Tag,
+  Sparkles, Copy, ExternalLink
 } from 'lucide-react';
 
 interface Product {
@@ -167,7 +168,7 @@ export default function App() {
   const [passwordInput, setPasswordInput] = useState('');
   const [authError, setAuthError] = useState('');
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'stock' | 'history' | 'stats'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'stock' | 'history' | 'stats' | 'leboncoin'>('dashboard');
   const [historySubTab, setHistorySubTab] = useState<'purchases' | 'sales'>('purchases');
   
   const [products, setProducts] = useState<Product[]>([]);
@@ -210,6 +211,17 @@ export default function App() {
   const [saleLines, setSaleLines] = useState<SaleLine[]>([
     { productId: '', quantity: 1, unitPrice: 0 }
   ]);
+
+  // 4. Générateur Leboncoin
+  const [lbcProductId, setLbcProductId] = useState<string>('');
+  const [lbcPrice, setLbcPrice] = useState<string>('15');
+  const [lbcCondition, setLbcCondition] = useState<string>('Neuf sous blister');
+  const [lbcShipping, setLbcShipping] = useState<boolean>(true);
+  const [lbcPickup, setLbcPickup] = useState<boolean>(true);
+  const [lbcCity, setLbcCity] = useState<string>('Nieppe (59850)');
+  const [lbcNotes, setLbcNotes] = useState<string>("Stocké au sec sous sachet déshydratant.");
+  const [copiedLbcTitle, setCopiedLbcTitle] = useState<boolean>(false);
+  const [copiedLbcBody, setCopiedLbcBody] = useState<boolean>(false);
 
   const appPassword = process.env.NEXT_PUBLIC_APP_PASSWORD;
 
@@ -265,7 +277,13 @@ export default function App() {
         .from('purchase_orders')
         .select('*');
 
-      if (prodData) setProducts(prodData);
+      if (prodData) {
+        setProducts(prodData);
+        if (prodData.length > 0 && !lbcProductId) {
+          setLbcProductId(prodData[0].id);
+          setLbcPrice(prodData[0].default_sell_price ? String(prodData[0].default_sell_price) : '15');
+        }
+      }
 
       if (purchaseItems && prodData) {
         const formattedPurchases: PurchaseItem[] = purchaseItems.map((item: any) => {
@@ -595,6 +613,53 @@ export default function App() {
     else fetchData();
   }
 
+  // Fonctions de génération Leboncoin
+  const selectedLbcProduct = products.find((p) => p.id === lbcProductId);
+
+  const generateLbcTitle = () => {
+    if (!selectedLbcProduct) return 'Bobine Filament 3D';
+    return `Bobine Filament 3D ${selectedLbcProduct.material} ${selectedLbcProduct.brand} - ${selectedLbcProduct.color}`.replace(/\s+/g, ' ').trim();
+  };
+
+  const generateLbcDescription = () => {
+    if (!selectedLbcProduct) return '';
+    const currentStock = getProductStock(selectedLbcProduct.id);
+
+    return `Bonjour,
+
+Je vends cette bobine de filament pour imprimante 3D :
+
+🔹 CARACTÉRISTIQUES :
+• Marque : ${selectedLbcProduct.brand}
+• Type de filament : ${selectedLbcProduct.material} (Diamètre standard 1.75mm)
+• Couleur : ${selectedLbcProduct.color}
+• État : ${lbcCondition}
+• Stock disponible : ${currentStock} unité(s)
+
+💡 INFOS COMPLÉMENTAIRES :
+• ${lbcNotes}
+• Excellente adhérence au plateau et rendu très propre.
+• Compatible avec toutes les imprimantes 3D FDM (Anycubic, Bambu Lab, Creality, Elegoo, Sovol, etc.).
+
+📦 LIVRAISON & REMISE :
+${lbcPickup ? `• Remise en main propre possible sur ${lbcCity}.` : ''}
+${lbcShipping ? '• Envoi soigné et rapide possible via Leboncoin (Mondial Relay, Colissimo, Shop2Shop).' : ''}
+
+N'hésitez pas à me contacter si vous souhaitez grouper avec d'autres bobines pour réduire les frais de port !`;
+  };
+
+  const handleCopyLbcTitle = async () => {
+    await navigator.clipboard.writeText(generateLbcTitle());
+    setCopiedLbcTitle(true);
+    setTimeout(() => setCopiedLbcTitle(false), 2000);
+  };
+
+  const handleCopyLbcBody = async () => {
+    await navigator.clipboard.writeText(generateLbcDescription());
+    setCopiedLbcBody(true);
+    setTimeout(() => setCopiedLbcBody(false), 2000);
+  };
+
   // Écran de verrouillage
   if (!isAuthenticated && appPassword) {
     return (
@@ -735,7 +800,7 @@ export default function App() {
             </h1>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex bg-slate-900 p-1.5 rounded-xl border border-slate-800 gap-1">
+            <div className="flex flex-wrap bg-slate-900 p-1.5 rounded-xl border border-slate-800 gap-1">
               <button
                 onClick={() => setActiveTab('dashboard')}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-semibold transition ${
@@ -767,6 +832,14 @@ export default function App() {
                 }`}
               >
                 <BarChart3 size={16} /> Statistiques
+              </button>
+              <button
+                onClick={() => setActiveTab('leboncoin')}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-semibold transition ${
+                  activeTab === 'leboncoin' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20' : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Sparkles size={16} className="text-amber-400" /> Annonces Leboncoin
               </button>
             </div>
             {appPassword && (
@@ -1463,6 +1536,185 @@ export default function App() {
               )}
             </div>
 
+          </div>
+        )}
+
+        {/* ================= ONGLET 5 : ANNONCES LEBONCOIN ================= */}
+        {activeTab === 'leboncoin' && (
+          <div className="space-y-6">
+            <div className="bg-slate-900/80 p-5 rounded-2xl border border-slate-800">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <Sparkles className="text-amber-400" size={20} /> Générateur d'Annonces Leboncoin & Vinted
+              </h2>
+              <p className="text-xs text-slate-400 mt-1">
+                Sélectionne une référence de ton stock pour générer instantanément un titre percutant et une description prête à copier.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Paramètres de l'annonce */}
+              <div className="lg:col-span-5 bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4 shadow-sm">
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    1. Sélectionner la bobine
+                  </label>
+                  <select
+                    value={lbcProductId}
+                    onChange={(e) => {
+                      const newId = e.target.value;
+                      setLbcProductId(newId);
+                      const targetP = products.find((p) => p.id === newId);
+                      if (targetP && targetP.default_sell_price) {
+                        setLbcPrice(String(targetP.default_sell_price));
+                      }
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-indigo-500 text-white"
+                  >
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        [{p.material}] {p.brand} - {p.color} (Stock: {getProductStock(p.id)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
+                      Prix de vente (€)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={lbcPrice}
+                      onChange={(e) => setLbcPrice(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-indigo-500 text-white font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
+                      État
+                    </label>
+                    <select
+                      value={lbcCondition}
+                      onChange={(e) => setLbcCondition(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-indigo-500 text-white"
+                    >
+                      <option value="Neuf sous blister">Neuf sous blister</option>
+                      <option value="Entamé / Très bon état">Entamé / TBE</option>
+                      <option value="Ouvert pour test">Ouvert pour test</option>
+                      <option value="Fin de bobine">Fin de bobine</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Ville pour remise en main propre
+                  </label>
+                  <input
+                    type="text"
+                    value={lbcCity}
+                    onChange={(e) => setLbcCity(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-indigo-500 text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">
+                    Note / Précision stockage
+                  </label>
+                  <input
+                    type="text"
+                    value={lbcNotes}
+                    onChange={(e) => setLbcNotes(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-indigo-500 text-white"
+                  />
+                </div>
+
+                <div className="pt-2 border-t border-slate-800 flex flex-wrap gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={lbcPickup}
+                      onChange={(e) => setLbcPickup(e.target.checked)}
+                      className="rounded bg-slate-950 border-slate-800 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    Remise en main propre
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={lbcShipping}
+                      onChange={(e) => setLbcShipping(e.target.checked)}
+                      className="rounded bg-slate-950 border-slate-800 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    Envoi possible
+                  </label>
+                </div>
+              </div>
+
+              {/* Rendu Textes Générés */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Tag size={14} className="text-indigo-400" /> Titre de l'annonce
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleCopyLbcTitle}
+                      className="flex items-center gap-1 text-xs font-bold text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20 transition cursor-pointer"
+                    >
+                      {copiedLbcTitle ? <Check size={13} /> : <Copy size={13} />}
+                      {copiedLbcTitle ? 'Titre copié !' : 'Copier le titre'}
+                    </button>
+                  </div>
+                  <div className="p-3 bg-slate-950 rounded-xl border border-slate-800/80 font-bold text-sm text-white">
+                    {generateLbcTitle()}
+                  </div>
+                </div>
+
+                <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Package size={14} className="text-indigo-400" /> Texte de l'annonce
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleCopyLbcBody}
+                      className="flex items-center gap-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 px-3.5 py-1.5 rounded-xl transition shadow-md shadow-indigo-600/20 cursor-pointer"
+                    >
+                      {copiedLbcBody ? <Check size={14} /> : <Copy size={14} />}
+                      {copiedLbcBody ? 'Texte copié !' : 'Copier la description'}
+                    </button>
+                  </div>
+
+                  <textarea
+                    readOnly
+                    rows={13}
+                    value={generateLbcDescription()}
+                    className="w-full p-3.5 bg-slate-950 rounded-xl border border-slate-800 text-xs leading-relaxed text-slate-200 font-mono resize-none focus:outline-none"
+                  />
+
+                  <div className="flex items-center justify-between pt-2">
+                    <span className="text-xs text-slate-400 font-medium">
+                      Prix conseillé : <strong className="text-emerald-400 font-mono text-sm">{lbcPrice} €</strong>
+                    </span>
+                    <a
+                      href="https://www.leboncoin.fr/deposer-une-annonce"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-xs font-bold text-slate-400 hover:text-white transition"
+                    >
+                      Ouvrir Leboncoin <ExternalLink size={12} />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
