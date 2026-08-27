@@ -37,6 +37,12 @@ interface SaleItem {
   quantity: number;
 }
 
+interface PurchaseLine {
+  productId: string;
+  quantity: number;
+  unitCost: number;
+}
+
 interface SaleLine {
   productId: string;
   quantity: number;
@@ -101,12 +107,14 @@ export default function ActionsPage() {
   const [color, setColor] = useState('');
   const [defaultSellPrice, setDefaultSellPrice] = useState(10);
 
-  const [restockProduct, setRestockProduct] = useState('');
-  const [restockQty, setRestockQty] = useState(1);
-  const [restockCost, setRestockCost] = useState(0);
+  // Achat multi-lignes
   const [supplier, setSupplier] = useState('Joybuy');
   const [purchaseDate, setPurchaseDate] = useState(todayStr);
+  const [purchaseLines, setPurchaseLines] = useState<PurchaseLine[]>([
+    { productId: '', quantity: 1, unitCost: 0 }
+  ]);
 
+  // Vente multi-lignes
   const [platform, setPlatform] = useState('Leboncoin');
   const [saleDate, setSaleDate] = useState(todayStr);
   const [saleLines, setSaleLines] = useState<SaleLine[]>([
@@ -208,26 +216,22 @@ export default function ActionsPage() {
     return totalQty > 0 ? (totalSpent / totalQty) : (product.avg_buy_price || 0);
   }
 
-  // Vérifie si la référence est surveillée via Joybuy
   function getJoybuyStatus(product: Product | undefined): { isJoybuy: boolean; inStock: boolean } {
     if (!product) return { isJoybuy: false, inStock: false };
 
     const b = (product.brand || '').toLowerCase();
     const m = (product.material || '').toUpperCase();
 
-    // 1. Anycubic PLA
     if (b.includes('anycubic') && m.includes('PLA')) {
       const link = supplierLinks.find(l => l.url?.includes('100187736') || l.label?.includes('PLA Basic'));
       return { isJoybuy: true, inStock: link ? link.is_in_stock : true };
     }
 
-    // 2. Anycubic PETG
     if (b.includes('anycubic') && m.includes('PETG')) {
       const link = supplierLinks.find(l => l.url?.includes('100392240') || l.label?.includes('PETG'));
       return { isJoybuy: true, inStock: link ? link.is_in_stock : true };
     }
 
-    // 3. Cailab
     if (b.includes('cailab')) {
       const link = supplierLinks.find(l => l.url?.includes('10424851') || l.label?.includes('Cailab'));
       return { isJoybuy: true, inStock: link ? link.is_in_stock : true };
@@ -251,9 +255,57 @@ export default function ActionsPage() {
     }
   }
 
-  async function recordRestock(e: React.FormEvent) {
+  // GESTION DES LIGNES D'ACHATS
+  function handlePurchaseLineProductChange(index: number, newProductId: string) {
+    const nextLines = [...purchaseLines];
+    const targetProd = products.find((p) => p.id === newProductId);
+    const cump = targetProd ? getProductCUMP(targetProd) : 0;
+
+    nextLines[index] = {
+      ...nextLines[index],
+      productId: newProductId,
+      unitCost: nextLines[index].unitCost > 0 ? nextLines[index].unitCost : (cump > 0 ? Number(cump.toFixed(2)) : 0),
+    };
+
+    if (newProductId && index === nextLines.length - 1) {
+      nextLines.push({ productId: '', quantity: 1, unitCost: 0 });
+    }
+
+    setPurchaseLines(nextLines);
+  }
+
+  function handlePurchaseLineQuantityChange(index: number, quantity: number) {
+    const nextLines = [...purchaseLines];
+    nextLines[index].quantity = quantity;
+    setPurchaseLines(nextLines);
+  }
+
+  function handlePurchaseLineCostChange(index: number, cost: number) {
+    const nextLines = [...purchaseLines];
+    nextLines[index].unitCost = cost;
+    setPurchaseLines(nextLines);
+  }
+
+  function removePurchaseLine(index: number) {
+    if (purchaseLines.length === 1) {
+      setPurchaseLines([{ productId: '', quantity: 1, unitCost: 0 }]);
+      return;
+    }
+    setPurchaseLines(purchaseLines.filter((_, i) => i !== index));
+  }
+
+  function addEmptyPurchaseLine() {
+    setPurchaseLines([...purchaseLines, { productId: '', quantity: 1, unitCost: 0 }]);
+  }
+
+  async function recordMultiPurchase(e: React.FormEvent) {
     e.preventDefault();
-    if (!restockProduct) return;
+
+    const validLines = purchaseLines.filter((l) => l.productId && l.productId !== '');
+    if (validLines.length === 0) {
+      alert('Veuillez sélectionner au moins une bobine reçue !');
+      return;
+    }
 
     const formattedDate = new Date(purchaseDate + 'T12:00:00Z').toISOString();
 
@@ -268,27 +320,27 @@ export default function ActionsPage() {
       return;
     }
 
-    const { error: itemErr } = await supabase.from('purchase_items').insert([
-      {
-        purchase_order_id: order.id,
-        product_id: restockProduct,
-        quantity: Number(restockQty),
-        unit_cost: Number(restockCost),
-        created_at: formattedDate
-      },
-    ]);
+    const itemsToInsert = validLines.map((line) => ({
+      purchase_order_id: order.id,
+      product_id: line.productId,
+      quantity: Number(line.quantity),
+      unit_cost: Number(line.unitCost),
+      created_at: formattedDate,
+    }));
 
-    if (itemErr) {
-      alert('Erreur Achat (Item) : ' + itemErr.message);
+    const { error: itemsErr } = await supabase.from('purchase_items').insert(itemsToInsert);
+
+    if (itemsErr) {
+      alert('Erreur Achat (Items) : ' + itemsErr.message);
       return;
     }
 
-    alert('Achat enregistré avec succès !');
-    setRestockQty(1);
-    setRestockCost(0);
+    alert(`${validLines.length} référence(s) entrée(s) en stock avec succès !`);
+    setPurchaseLines([{ productId: '', quantity: 1, unitCost: 0 }]);
     fetchData();
   }
 
+  // GESTION DES LIGNES DE VENTES
   function handleLineProductChange(index: number, newProductId: string) {
     const nextLines = [...saleLines];
     const targetProd = products.find((p) => p.id === newProductId);
@@ -418,15 +470,14 @@ export default function ActionsPage() {
 
   const totalStockValue = products.reduce((acc, p) => acc + (getProductStock(p.id) * getProductCUMP(p)), 0);
   const totalSpools = products.reduce((acc, p) => acc + getProductStock(p.id), 0);
+
+  const currentPurchaseTotal = purchaseLines
+    .filter((l) => l.productId)
+    .reduce((sum, l) => sum + (Number(l.quantity || 0) * Number(l.unitCost || 0)), 0);
+
   const currentSaleTotal = saleLines
     .filter((l) => l.productId)
     .reduce((sum, l) => sum + (Number(l.quantity || 0) * Number(l.unitPrice || 0)), 0);
-
-  const selectedRestockProd = products.find((p) => p.id === restockProduct);
-  const selectedRestockColor = selectedRestockProd ? getColorHex(selectedRestockProd.color) : { bg: '#6366f1', border: '#4338ca' };
-  const selectedRestockStock = selectedRestockProd ? getProductStock(selectedRestockProd.id) : 0;
-  const selectedRestockCump = selectedRestockProd ? getProductCUMP(selectedRestockProd) : 0;
-  const restockJoybuy = selectedRestockProd ? getJoybuyStatus(selectedRestockProd) : { isJoybuy: false, inStock: false };
 
   return (
     <div className="space-y-6">
@@ -525,104 +576,21 @@ export default function ActionsPage() {
           </form>
         </div>
 
-        {/* 2. ACHAT */}
+        {/* 2. ACHAT MULTI-LIGNES */}
         <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4 shadow-sm">
-          <h2 className="text-base font-bold flex items-center gap-2 text-cyan-300"><ArrowDownLeft size={18} /> 2. Enregistrer un achat</h2>
-          <form onSubmit={recordRestock} className="space-y-3">
-            <select
-              className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-cyan-500 text-white font-medium"
-              value={restockProduct}
-              onChange={(e) => {
-                const pId = e.target.value;
-                setRestockProduct(pId);
-                const targetP = products.find(p => p.id === pId);
-                if (targetP && getJoybuyStatus(targetP).isJoybuy) {
-                  setSupplier('Joybuy');
-                }
-              }}
-              required
-            >
-              <option value="">Sélectionner la bobine reçue...</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  [{p.material}] {p.brand} - {p.color}
-                </option>
-              ))}
-            </select>
-
-            {/* ENCART DÉTAIL PRODUIT AVEC ÉTAT EN STOCK / RUPTURE JOYBUY */}
-            {selectedRestockProd && (
-              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    {/* PASTILLE DE COULEUR PHYSIQUE */}
-                    <span 
-                      style={{
-                        display: 'inline-block',
-                        width: '16px',
-                        height: '16px',
-                        minWidth: '16px',
-                        minHeight: '16px',
-                        borderRadius: '9999px',
-                        backgroundColor: selectedRestockColor.bg,
-                        border: `2px solid ${selectedRestockColor.border}`,
-                        boxShadow: '0 0 6px rgba(0,0,0,0.6)'
-                      }}
-                    />
-                    <span className="font-semibold text-white text-sm">
-                      {selectedRestockProd.material} {selectedRestockProd.color}
-                    </span>
-                  </div>
-
-                  {/* BADGE ÉTAT JOYBUY DYNAMIQUE (VERT SI DISPO, ROUGE SI RUPTURE) */}
-                  {restockJoybuy.isJoybuy && (
-                    restockJoybuy.inStock ? (
-                      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Dispo Joybuy
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping"></span> Rupture Joybuy
-                      </span>
-                    )
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between text-slate-400 border-t border-slate-900 pt-1.5 text-[11px]">
-                  <span>Mon stock réel : <strong className="text-cyan-400 font-mono">{selectedRestockStock}</strong></span>
-                  <span>CUMP actuel : <strong className="text-slate-300 font-mono">{selectedRestockCump.toFixed(2)} €</strong></span>
-                </div>
-              </div>
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-bold flex items-center gap-2 text-cyan-300">
+              <ArrowDownLeft size={18} /> 2. Enregistrer un achat
+            </h2>
+            {currentPurchaseTotal > 0 && (
+              <span className="text-xs font-bold font-mono text-cyan-400 bg-cyan-500/10 px-2.5 py-1 rounded-lg border border-cyan-500/20">
+                Total : {currentPurchaseTotal.toFixed(2)} €
+              </span>
             )}
+          </div>
 
+          <form onSubmit={recordMultiPurchase} className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
-              <input
-                type="number"
-                min="1"
-                placeholder="Quantité"
-                className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-cyan-500 text-white"
-                value={restockQty}
-                onChange={(e) => setRestockQty(Number(e.target.value))}
-                required
-              />
-              <input
-                type="number"
-                step="0.01"
-                placeholder="Coût unit. (€)"
-                className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-cyan-500 text-white font-mono"
-                value={restockCost || ''}
-                onChange={(e) => setRestockCost(Number(e.target.value))}
-                required
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="date"
-                className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-cyan-500 text-white"
-                value={purchaseDate}
-                onChange={(e) => setPurchaseDate(e.target.value)}
-                required
-              />
               <select
                 className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-cyan-500 text-white"
                 value={supplier}
@@ -633,14 +601,134 @@ export default function ActionsPage() {
                 <option value="Amazon">Amazon</option>
                 <option value="Direct / Autre">Autre</option>
               </select>
+              <input
+                type="date"
+                className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-cyan-500 text-white"
+                value={purchaseDate}
+                onChange={(e) => setPurchaseDate(e.target.value)}
+                required
+              />
             </div>
-            <button type="submit" className="w-full bg-cyan-600 hover:bg-cyan-500 font-semibold py-2.5 rounded-xl transition text-white shadow-lg shadow-cyan-600/20">
-              Entrer en stock (+ CUMP)
+
+            <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+              {purchaseLines.map((line, idx) => {
+                const selectedProd = products.find((p) => p.id === line.productId);
+                const colorHex = selectedProd ? getColorHex(selectedProd.color) : { bg: '#6366f1', border: '#4338ca' };
+                const stockQty = selectedProd ? getProductStock(selectedProd.id) : 0;
+                const cumpVal = selectedProd ? getProductCUMP(selectedProd) : 0;
+                const joybuyStatus = selectedProd ? getJoybuyStatus(selectedProd) : { isJoybuy: false, inStock: false };
+
+                return (
+                  <div key={idx} className="p-3 bg-slate-950/80 rounded-xl border border-slate-800/90 space-y-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-bold text-slate-400">#{idx + 1}</span>
+                      <select
+                        className="w-full bg-slate-900 border border-slate-800 p-2 rounded-lg text-xs outline-none focus:border-cyan-500 text-white font-medium"
+                        value={line.productId}
+                        onChange={(e) => handlePurchaseLineProductChange(idx, e.target.value)}
+                      >
+                        <option value="">Sélectionner une bobine reçue...</option>
+                        {products.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            [{p.material}] {p.brand} - {p.color}
+                          </option>
+                        ))}
+                      </select>
+                      {purchaseLines.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removePurchaseLine(idx)}
+                          className="p-1.5 text-slate-500 hover:text-rose-400 transition"
+                          title="Supprimer la ligne"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+
+                    {selectedProd && (
+                      <div className="flex flex-wrap items-center justify-between gap-1.5 p-2 bg-slate-900 rounded-lg border border-slate-800 text-[11px]">
+                        <div className="flex items-center gap-2">
+                          <span 
+                            style={{
+                              display: 'inline-block',
+                              width: '14px',
+                              height: '14px',
+                              minWidth: '14px',
+                              minHeight: '14px',
+                              borderRadius: '9999px',
+                              backgroundColor: colorHex.bg,
+                              border: `2px solid ${colorHex.border}`,
+                              boxShadow: '0 0 5px rgba(0,0,0,0.6)'
+                            }}
+                          />
+                          <span className="text-slate-200 font-semibold">{selectedProd.color}</span>
+                          
+                          {joybuyStatus.isJoybuy && (
+                            joybuyStatus.inStock ? (
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded">
+                                Dispo Joybuy
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold px-1.5 py-0.2 bg-rose-500/10 text-rose-400 border border-rose-500/30 rounded">
+                                Rupture Joybuy
+                              </span>
+                            )
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-400">Stock : <strong className="text-cyan-400 font-mono">{stockQty}</strong></span>
+                          <span className="text-slate-500 font-mono">CUMP {cumpVal.toFixed(2)}€</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="Qté"
+                        className="bg-slate-900 border border-slate-800 p-2 rounded-lg text-xs outline-none focus:border-cyan-500 text-white"
+                        value={line.quantity}
+                        onChange={(e) => handlePurchaseLineQuantityChange(idx, Number(e.target.value))}
+                        disabled={!line.productId}
+                        required
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Coût unit. (€)"
+                        className="bg-slate-900 border border-slate-800 p-2 rounded-lg text-xs outline-none focus:border-cyan-500 text-white font-mono"
+                        value={line.unitCost || ''}
+                        onChange={(e) => handlePurchaseLineCostChange(idx, Number(e.target.value))}
+                        disabled={!line.productId}
+                        required
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={addEmptyPurchaseLine}
+              className="w-full text-xs py-1.5 border border-dashed border-slate-700 hover:border-cyan-500/50 text-slate-400 hover:text-cyan-400 rounded-xl transition flex items-center justify-center gap-1"
+            >
+              <Plus size={14} /> Ajouter une bobine reçue
+            </button>
+
+            <button 
+              type="submit" 
+              className="w-full bg-cyan-600 hover:bg-cyan-500 font-semibold py-2.5 rounded-xl transition text-white shadow-lg shadow-cyan-600/20"
+            >
+              Entrer le lot en stock (+ CUMP)
             </button>
           </form>
         </div>
 
-        {/* 3. VENTE */}
+        {/* 3. VENTE MULTI-LIGNES */}
         <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4 shadow-sm">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold flex items-center gap-2 text-emerald-300">
@@ -728,7 +816,6 @@ export default function ActionsPage() {
                           />
                           <span className="text-slate-200 font-semibold">{selectedProd.color}</span>
                           
-                          {/* BADGE JOYBUY EN VENTE */}
                           {saleJoybuy.isJoybuy && (
                             saleJoybuy.inStock ? (
                               <span className="text-[10px] font-bold px-1.5 py-0.2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded">
