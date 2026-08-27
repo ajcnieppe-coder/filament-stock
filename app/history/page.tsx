@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 import { 
-  ArrowDownLeft, ShoppingCart, Trash2, CheckCircle2, 
-  Clock, Truck, PackageCheck, Layers, Calendar, Store, Edit2, X, Check
+  ArrowDownLeft, ShoppingCart, Trash2, 
+  Clock, Truck, PackageCheck, Calendar, Store
 } from 'lucide-react';
 
 interface Product {
@@ -87,7 +87,6 @@ function getColorHex(colorName: string): { bg: string; border: string } {
 
 export default function HistoryPage() {
   const [historySubTab, setHistorySubTab] = useState<'purchases' | 'sales'>('purchases');
-  const [products, setProducts] = useState<Product[]>([]);
   const [purchaseGroups, setPurchaseGroups] = useState<PurchaseOrderGroup[]>([]);
   const [salesGroups, setSalesGroups] = useState<SalesOrderGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,15 +99,13 @@ export default function HistoryPage() {
     setLoading(true);
     try {
       const { data: prodData } = await supabase.from('products').select('*');
-      const { data: pOrders } = await supabase.from('purchase_orders').select('*').order('created_at', { ascending: false });
+      const { data: pOrders } = await supabase.from('purchase_orders').select('*');
       const { data: pItems } = await supabase.from('purchase_items').select('*');
       
-      const { data: sOrders } = await supabase.from('sales_orders').select('*').order('created_at', { ascending: false });
+      const { data: sOrders } = await supabase.from('sales_orders').select('*');
       const { data: sItems } = await supabase.from('sales_items').select('*');
 
-      if (prodData) setProducts(prodData);
-
-      // Regroupement des Achats par commande
+      // Regroupement et tri strict décroissant par milliseconde (le plus récent en premier)
       if (pOrders && pItems) {
         const groups: PurchaseOrderGroup[] = pOrders.map((ord: any) => {
           const itemsForOrder = pItems
@@ -131,10 +128,11 @@ export default function HistoryPage() {
           };
         }).filter(g => g.items.length > 0);
 
+        groups.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         setPurchaseGroups(groups);
       }
 
-      // Regroupement des Ventes par commande de lot
+      // Regroupement et tri strict décroissant pour les ventes
       if (sOrders && sItems) {
         const groups: SalesOrderGroup[] = sOrders.map((ord: any) => {
           const itemsForOrder = sItems
@@ -158,6 +156,7 @@ export default function HistoryPage() {
           };
         }).filter(g => g.items.length > 0);
 
+        groups.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         setSalesGroups(groups);
       }
     } catch (err) {
@@ -166,7 +165,6 @@ export default function HistoryPage() {
     setLoading(false);
   }
 
-  // Mise à jour du statut d'expédition (Achat en cours -> Colis envoyé -> Colis reçu)
   async function updateOrderStatus(orderId: string, newStatus: string) {
     const { error } = await supabase
       .from('sales_orders')
@@ -230,10 +228,15 @@ export default function HistoryPage() {
       {historySubTab === 'purchases' && (
         <div className="space-y-4">
           {purchaseGroups.map((group) => {
-            const dateStr = new Date(group.created_at).toLocaleDateString('fr-FR', {
+            const dateObj = new Date(group.created_at);
+            const dateStr = dateObj.toLocaleDateString('fr-FR', {
               day: '2-digit',
               month: 'long',
               year: 'numeric',
+            });
+            const timeStr = dateObj.toLocaleTimeString('fr-FR', {
+              hour: '2-digit',
+              minute: '2-digit',
             });
 
             return (
@@ -251,8 +254,8 @@ export default function HistoryPage() {
                           {group.totalQty} bobine(s)
                         </span>
                       </div>
-                      <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                        <Calendar size={12} /> {dateStr}
+                      <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono">
+                        <Calendar size={12} /> {dateStr} à {timeStr}
                       </div>
                     </div>
                   </div>
@@ -325,10 +328,15 @@ export default function HistoryPage() {
       {historySubTab === 'sales' && (
         <div className="space-y-4">
           {salesGroups.map((group) => {
-            const dateStr = new Date(group.created_at).toLocaleDateString('fr-FR', {
+            const dateObj = new Date(group.created_at);
+            const dateStr = dateObj.toLocaleDateString('fr-FR', {
               day: '2-digit',
               month: 'long',
               year: 'numeric',
+            });
+            const timeStr = dateObj.toLocaleTimeString('fr-FR', {
+              hour: '2-digit',
+              minute: '2-digit',
             });
 
             return (
@@ -346,8 +354,8 @@ export default function HistoryPage() {
                           {group.totalQty} bobine(s)
                         </span>
                       </div>
-                      <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                        <Calendar size={12} /> {dateStr}
+                      <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono">
+                        <Calendar size={12} /> {dateStr} à {timeStr}
                       </div>
                     </div>
                   </div>
@@ -374,7 +382,6 @@ export default function HistoryPage() {
                   </span>
 
                   <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 gap-1">
-                    {/* Étape 1 : Achat en cours */}
                     <button
                       type="button"
                       onClick={() => updateOrderStatus(group.id, 'Achat en cours')}
@@ -387,7 +394,6 @@ export default function HistoryPage() {
                       <Clock size={13} /> Achat en cours
                     </button>
 
-                    {/* Étape 2 : Colis envoyé */}
                     <button
                       type="button"
                       onClick={() => updateOrderStatus(group.id, 'Colis envoyé')}
@@ -400,7 +406,6 @@ export default function HistoryPage() {
                       <Truck size={13} /> Colis envoyé
                     </button>
 
-                    {/* Étape 3 : Colis reçu */}
                     <button
                       type="button"
                       onClick={() => updateOrderStatus(group.id, 'Colis reçu')}
