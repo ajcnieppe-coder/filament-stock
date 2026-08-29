@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase';
 import { 
   ArrowDownLeft, ShoppingCart, Trash2, 
-  Clock, Truck, PackageCheck, Calendar, Store
+  Clock, Truck, PackageCheck, Calendar, Store, Edit3, X, Check
 } from 'lucide-react';
 
 interface Product {
@@ -86,10 +86,17 @@ function getColorHex(colorName: string): { bg: string; border: string } {
 }
 
 export default function HistoryPage() {
-  const [historySubTab, setHistorySubTab] = useState<'purchases' | 'sales'>('purchases');
+  const [historySubTab, setHistorySubTab] = useState<'purchases' | 'sales'>('sales');
   const [purchaseGroups, setPurchaseGroups] = useState<PurchaseOrderGroup[]>([]);
   const [salesGroups, setSalesGroups] = useState<SalesOrderGroup[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // État pour la modification d'une vente
+  const [editingSale, setEditingSale] = useState<SalesOrderGroup | null>(null);
+  const [editPlatform, setEditPlatform] = useState('');
+  const [editCreatedAt, setEditCreatedAt] = useState('');
+  const [editStatus, setEditStatus] = useState<'Achat en cours' | 'Colis envoyé' | 'Colis reçu'>('Achat en cours');
+  const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -105,7 +112,7 @@ export default function HistoryPage() {
       const { data: sOrders } = await supabase.from('sales_orders').select('*');
       const { data: sItems } = await supabase.from('sales_items').select('*');
 
-      // Regroupement et tri strict décroissant par milliseconde (le plus récent en premier)
+      // 1. Regroupement et tri strict décroissant par Date & Heure pour les achats
       if (pOrders && pItems) {
         const groups: PurchaseOrderGroup[] = pOrders.map((ord: any) => {
           const itemsForOrder = pItems
@@ -132,7 +139,7 @@ export default function HistoryPage() {
         setPurchaseGroups(groups);
       }
 
-      // Regroupement et tri strict décroissant pour les ventes
+      // 2. Regroupement et tri strict décroissant par Date & Heure pour les ventes
       if (sOrders && sItems) {
         const groups: SalesOrderGroup[] = sOrders.map((ord: any) => {
           const itemsForOrder = sItems
@@ -180,6 +187,61 @@ export default function HistoryPage() {
     }
   }
 
+  function handleOpenEdit(group: SalesOrderGroup) {
+    setEditingSale(group);
+    setEditPlatform(group.platform);
+    setEditStatus(group.status);
+    
+    // Format compatible avec input type="datetime-local" (YYYY-MM-DDTHH:mm)
+    const d = new Date(group.created_at);
+    const tzOffset = d.getTimezoneOffset() * 60000;
+    const localISOTime = new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
+    setEditCreatedAt(localISOTime);
+  }
+
+  async function handleSaveSaleEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingSale) return;
+
+    setSavingEdit(true);
+    try {
+      const updatedTimestamp = new Date(editCreatedAt).toISOString();
+
+      const { error } = await supabase
+        .from('sales_orders')
+        .update({
+          platform: editPlatform.trim() || 'Vente directe',
+          status: editStatus,
+          created_at: updatedTimestamp,
+        })
+        .eq('id', editingSale.id);
+
+      if (error) throw error;
+
+      // Mettre à jour l'état local et re-trier par date/heure
+      setSalesGroups(prev => {
+        const updated = prev.map(g => {
+          if (g.id === editingSale.id) {
+            return {
+              ...g,
+              platform: editPlatform.trim() || 'Vente directe',
+              status: editStatus,
+              created_at: updatedTimestamp,
+            };
+          }
+          return g;
+        });
+        return updated.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      });
+
+      setEditingSale(null);
+    } catch (err: any) {
+      alert('Erreur lors de la modification : ' + err.message);
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
   async function deletePurchaseOrder(orderId: string) {
     if (!confirm('Supprimer cette commande d\'achat complète ? Le stock sera recalculé.')) return;
     await supabase.from('purchase_items').delete().eq('purchase_order_id', orderId);
@@ -197,7 +259,7 @@ export default function HistoryPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="text-slate-400 text-sm animate-pulse">Chargement de l'historique des commandes...</div>
+        <div className="text-slate-400 text-sm animate-pulse">Chargement de l'historique...</div>
       </div>
     );
   }
@@ -207,14 +269,6 @@ export default function HistoryPage() {
       {/* En-tête des onglets */}
       <div className="flex bg-slate-900 p-1.5 rounded-2xl border border-slate-800 w-fit gap-1">
         <button
-          onClick={() => setHistorySubTab('purchases')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition ${
-            historySubTab === 'purchases' ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/20' : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          <ArrowDownLeft size={16} /> Commandes Achats ({purchaseGroups.length})
-        </button>
-        <button
           onClick={() => setHistorySubTab('sales')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition ${
             historySubTab === 'sales' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-400 hover:text-white'
@@ -222,109 +276,17 @@ export default function HistoryPage() {
         >
           <ShoppingCart size={16} /> Lots Vendus ({salesGroups.length})
         </button>
+        <button
+          onClick={() => setHistorySubTab('purchases')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition ${
+            historySubTab === 'purchases' ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/20' : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          <ArrowDownLeft size={16} /> Commandes Achats ({purchaseGroups.length})
+        </button>
       </div>
 
-      {/* 1. COMMANDES D'ACHATS SÉPARÉES */}
-      {historySubTab === 'purchases' && (
-        <div className="space-y-4">
-          {purchaseGroups.map((group) => {
-            const dateObj = new Date(group.created_at);
-            const dateStr = dateObj.toLocaleDateString('fr-FR', {
-              day: '2-digit',
-              month: 'long',
-              year: 'numeric',
-            });
-            const timeStr = dateObj.toLocaleTimeString('fr-FR', {
-              hour: '2-digit',
-              minute: '2-digit',
-            });
-
-            return (
-              <div key={group.id} className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg space-y-3">
-                {/* En-tête du bon de commande */}
-                <div className="p-4 bg-slate-950/60 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-cyan-500/10 text-cyan-400 rounded-xl border border-cyan-500/20">
-                      <Store size={18} />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-white text-base">{group.supplier}</span>
-                        <span className="text-xs px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 font-bold border border-cyan-500/20">
-                          {group.totalQty} bobine(s)
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono">
-                        <Calendar size={12} /> {dateStr} à {timeStr}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <div className="text-xs text-slate-400">Total commande</div>
-                      <div className="font-mono font-bold text-rose-400 text-base">-{group.totalCost.toFixed(2)} €</div>
-                    </div>
-                    <button
-                      onClick={() => deletePurchaseOrder(group.id)}
-                      className="p-2 text-slate-500 hover:text-rose-400 bg-slate-800/60 hover:bg-slate-800 rounded-xl transition"
-                      title="Supprimer cette commande"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Détail des bobines de la commande */}
-                <div className="p-4 pt-1">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-                    {group.items.map((item) => {
-                      const colorHex = item.product ? getColorHex(item.product.color) : null;
-                      return (
-                        <div key={item.id} className="p-3 bg-slate-950 rounded-xl border border-slate-800/80 flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <span
-                              style={{
-                                display: 'inline-block',
-                                width: '13px',
-                                height: '13px',
-                                minWidth: '13px',
-                                minHeight: '13px',
-                                borderRadius: '9999px',
-                                backgroundColor: colorHex?.bg,
-                                border: `1.5px solid ${colorHex?.border}`,
-                              }}
-                            />
-                            <div className="truncate">
-                              <div className="text-xs font-semibold text-white truncate">
-                                [{item.product?.material || '?'}] {item.product?.brand || ''}
-                              </div>
-                              <div className="text-[11px] text-slate-400 truncate">{item.product?.color}</div>
-                            </div>
-                          </div>
-
-                          <div className="text-right flex-shrink-0">
-                            <div className="text-xs font-bold text-cyan-400 font-mono">x{item.quantity}</div>
-                            <div className="text-[11px] text-slate-500 font-mono">{Number(item.unit_cost).toFixed(2)} €/u</div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-
-          {purchaseGroups.length === 0 && (
-            <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl text-center text-slate-500">
-              Aucune commande d'achat enregistrée pour le moment.
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 2. COMMANDES DE VENTES AVEC MODULE D'EXPÉDITION */}
+      {/* 1. COMMANDES DE VENTES */}
       {historySubTab === 'sales' && (
         <div className="space-y-4">
           {salesGroups.map((group) => {
@@ -360,11 +322,22 @@ export default function HistoryPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 sm:gap-4">
                     <div className="text-right">
                       <div className="text-xs text-slate-400">Total encaissé</div>
                       <div className="font-mono font-bold text-emerald-400 text-base">+{group.totalRevenue.toFixed(2)} €</div>
                     </div>
+                    
+                    {/* Bouton Modifier la vente */}
+                    <button
+                      onClick={() => handleOpenEdit(group)}
+                      className="p-2 text-slate-400 hover:text-cyan-400 bg-slate-800/60 hover:bg-slate-800 rounded-xl transition"
+                      title="Modifier la vente"
+                    >
+                      <Edit3 size={16} />
+                    </button>
+
+                    {/* Bouton Supprimer la vente */}
                     <button
                       onClick={() => deleteSalesOrder(group.id)}
                       className="p-2 text-slate-500 hover:text-rose-400 bg-slate-800/60 hover:bg-slate-800 rounded-xl transition"
@@ -375,7 +348,7 @@ export default function HistoryPage() {
                   </div>
                 </div>
 
-                {/* MODULE SUIVI D'EXPÉDITION (ACHAT EN COURS / ENVOYÉ / REÇU) */}
+                {/* MODULE SUIVI D'EXPÉDITION */}
                 <div className="px-4 py-2.5 bg-slate-950/40 border-b border-slate-800/50 flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs font-bold text-slate-400 flex items-center gap-1.5">
                     <Truck size={14} className="text-indigo-400" /> État de la commande :
@@ -466,6 +439,202 @@ export default function HistoryPage() {
               Aucune vente enregistrée pour le moment.
             </div>
           )}
+        </div>
+      )}
+
+      {/* 2. COMMANDES D'ACHATS */}
+      {historySubTab === 'purchases' && (
+        <div className="space-y-4">
+          {purchaseGroups.map((group) => {
+            const dateObj = new Date(group.created_at);
+            const dateStr = dateObj.toLocaleDateString('fr-FR', {
+              day: '2-digit',
+              month: 'long',
+              year: 'numeric',
+            });
+            const timeStr = dateObj.toLocaleTimeString('fr-FR', {
+              hour: '2-digit',
+              minute: '2-digit',
+            });
+
+            return (
+              <div key={group.id} className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg space-y-3">
+                <div className="p-4 bg-slate-950/60 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-cyan-500/10 text-cyan-400 rounded-xl border border-cyan-500/20">
+                      <Store size={18} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white text-base">{group.supplier}</span>
+                        <span className="text-xs px-2.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 font-bold border border-cyan-500/20">
+                          {group.totalQty} bobine(s)
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono">
+                        <Calendar size={12} /> {dateStr} à {timeStr}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <div className="text-xs text-slate-400">Total commande</div>
+                      <div className="font-mono font-bold text-rose-400 text-base">-{group.totalCost.toFixed(2)} €</div>
+                    </div>
+                    <button
+                      onClick={() => deletePurchaseOrder(group.id)}
+                      className="p-2 text-slate-500 hover:text-rose-400 bg-slate-800/60 hover:bg-slate-800 rounded-xl transition"
+                      title="Supprimer cette commande"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-4 pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                    {group.items.map((item) => {
+                      const colorHex = item.product ? getColorHex(item.product.color) : null;
+                      return (
+                        <div key={item.id} className="p-3 bg-slate-950 rounded-xl border border-slate-800/80 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                width: '13px',
+                                height: '13px',
+                                minWidth: '13px',
+                                minHeight: '13px',
+                                borderRadius: '9999px',
+                                backgroundColor: colorHex?.bg,
+                                border: `1.5px solid ${colorHex?.border}`,
+                              }}
+                            />
+                            <div className="truncate">
+                              <div className="text-xs font-semibold text-white truncate">
+                                [{item.product?.material || '?'}] {item.product?.brand || ''}
+                              </div>
+                              <div className="text-[11px] text-slate-400 truncate">{item.product?.color}</div>
+                            </div>
+                          </div>
+
+                          <div className="text-right flex-shrink-0">
+                            <div className="text-xs font-bold text-cyan-400 font-mono">x{item.quantity}</div>
+                            <div className="text-[11px] text-slate-500 font-mono">{Number(item.unit_cost).toFixed(2)} €/u</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {purchaseGroups.length === 0 && (
+            <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl text-center text-slate-500">
+              Aucune commande d'achat enregistrée pour le moment.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MODALE DE MODIFICATION D'UNE VENTE */}
+      {editingSale && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-md w-full space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+              <h3 className="font-bold text-white text-base flex items-center gap-2">
+                <Edit3 size={18} className="text-cyan-400" />
+                Modifier la vente
+              </h3>
+              <button
+                onClick={() => setEditingSale(null)}
+                className="text-slate-400 hover:text-white transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveSaleEdit} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1">
+                  Canal / Plateforme de vente
+                </label>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  {['Vente directe', 'Leboncoin', 'Vinted', 'Autre'].map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setEditPlatform(p)}
+                      className={`px-3 py-2 rounded-xl text-xs font-semibold transition border ${
+                        editPlatform === p
+                          ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                          : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  placeholder="Ou saisir une autre plateforme..."
+                  value={editPlatform}
+                  onChange={(e) => setEditPlatform(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1">
+                  Date et Heure de la vente
+                </label>
+                <input
+                  type="datetime-local"
+                  value={editCreatedAt}
+                  onChange={(e) => setEditCreatedAt(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500 font-mono"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1">
+                  État de la commande
+                </label>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value as any)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
+                >
+                  <option value="Achat en cours">Achat en cours</option>
+                  <option value="Colis envoyé">Colis envoyé</option>
+                  <option value="Colis reçu">Colis reçu</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingSale(null)}
+                  className="w-1/2 py-2.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEdit}
+                  className="w-1/2 py-2.5 rounded-xl text-xs font-semibold bg-cyan-600 hover:bg-cyan-500 text-white font-bold transition flex items-center justify-center gap-1.5 shadow-md shadow-cyan-600/20"
+                >
+                  <Check size={15} />
+                  {savingEdit ? 'Enregistrement...' : 'Valider'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
