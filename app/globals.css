@@ -1,12 +1,30 @@
 @import "tailwindcss";
 
 :root {
-  --background: #090d16 !important;
-  --foreground: #f8fafc !important;
+  --background: #0b1120; /* Fond général du site */
+  --foreground: #f8fafc;
   color-scheme: dark;
 }
 
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  
+  /* Redéfinit slate-900 (les gros blocs) pour toutes les pages */
+  --color-slate-900: #283548;
+  
+  /* Redéfinit slate-950 (les champs et sous-blocs) pour toutes les pages */
+  --color-slate-950: #131c2e;
+  
+  /* Éclaircit légèrement les bordures par défaut */
+  --color-slate-800: #475569;
+}
+
+html,
 body {
-  background-color: #090d16 !important;
-  color: #f8fafc !important;
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
+  min-height: 100vh;
 }
