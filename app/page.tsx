@@ -432,8 +432,8 @@ export default function ActionsPage() {
   if (!isAuthenticated && appPassword) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center p-4">
-        <div className="bg-slate-900 border border-slate-800 p-8 rounded-3xl max-w-sm w-full shadow-2xl space-y-6 text-center">
-          <div className="w-16 h-16 bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+        <div className="bg-slate-900 border border-slate-700/80 p-8 rounded-3xl max-w-sm w-full shadow-2xl space-y-6 text-center">
+          <div className="w-16 h-16 bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
             <Lock size={32} />
           </div>
           <div className="space-y-1">
@@ -449,16 +449,16 @@ export default function ActionsPage() {
                   placeholder="Code secret ou mot de passe"
                   value={passwordInput}
                   onChange={(e) => setPasswordInput(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 pl-10 pr-4 py-3 rounded-xl text-white text-sm outline-none focus:border-indigo-500 transition"
+                  className="w-full bg-slate-950 border border-slate-700/80 pl-10 pr-4 py-3 rounded-xl text-white text-sm outline-none focus:border-indigo-500 transition"
                   autoFocus
                 />
-                <KeyRound size={16} className="absolute left-3.5 top-3.5 text-slate-500" />
+                <KeyRound size={16} className="absolute left-3.5 top-3.5 text-slate-400" />
               </div>
               {authError && <p className="text-rose-400 text-xs mt-2 font-medium">{authError}</p>}
             </div>
             <button
               type="submit"
-              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 rounded-xl transition shadow-lg shadow-indigo-600/20"
+              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 rounded-xl transition shadow-lg shadow-indigo-600/30"
             >
               Déverrouiller
             </button>
@@ -483,15 +483,15 @@ export default function ActionsPage() {
     <div className="space-y-6">
       {/* SECTION VEILLE STOCK FOURNISSEUR */}
       {supplierLinks.length > 0 && (
-        <div className="bg-slate-900/90 p-4 rounded-2xl border border-slate-800 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="bg-slate-900/90 p-4 rounded-2xl border border-slate-700/80 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+            <div className="p-2.5 rounded-xl bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
               <Radio size={20} className={isScanning ? 'animate-pulse' : ''} />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-white">Veille Stock Fournisseurs</span>
-                <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-semibold border border-slate-700">
+                <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-200 font-semibold border border-slate-700">
                   {supplierLinks.filter(s => s.is_in_stock).length}/{supplierLinks.length} Dispo
                 </span>
               </div>
@@ -504,7 +504,7 @@ export default function ActionsPage() {
           <button
             onClick={runManualScan}
             disabled={isScanning}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition disabled:opacity-50 shadow-md shadow-indigo-600/20"
           >
             <RefreshCw size={13} className={isScanning ? 'animate-spin' : ''} />
             {isScanning ? 'Scan en cours...' : 'Scanner maintenant'}
@@ -514,37 +514,37 @@ export default function ActionsPage() {
 
       {/* KPI EN-TÊTE */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 shadow-sm">
-          <div className="flex items-center gap-3 text-slate-400 mb-1 text-sm"><Package size={18} className="text-indigo-400" /> Bobines en stock</div>
-          <div className="text-2xl font-bold text-white">{totalSpools} unités</div>
+        <div className="bg-slate-900/90 p-5 rounded-2xl border border-slate-700/80 shadow-md">
+          <div className="flex items-center gap-3 text-slate-300 mb-1 text-sm font-medium"><Package size={18} className="text-indigo-400" /> Bobines en stock</div>
+          <div className="text-2xl font-bold text-white tracking-tight">{totalSpools} unités</div>
         </div>
-        <div className="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 shadow-sm">
-          <div className="flex items-center gap-3 text-slate-400 mb-1 text-sm"><TrendingUp size={18} className="text-emerald-400" /> Valeur de revient du stock</div>
-          <div className="text-2xl font-bold text-emerald-400">{totalStockValue.toFixed(2)} €</div>
+        <div className="bg-slate-900/90 p-5 rounded-2xl border border-slate-700/80 shadow-md">
+          <div className="flex items-center gap-3 text-slate-300 mb-1 text-sm font-medium"><TrendingUp size={18} className="text-emerald-400" /> Valeur de revient du stock</div>
+          <div className="text-2xl font-bold text-emerald-400 tracking-tight">{totalStockValue.toFixed(2)} €</div>
         </div>
-        <div className="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 shadow-sm">
-          <div className="flex items-center gap-3 text-slate-400 mb-1 text-sm"><AlertTriangle size={18} className="text-amber-400" /> Alertes stock bas</div>
-          <div className="text-2xl font-bold text-amber-400">{products.filter((p) => getProductStock(p.id) <= p.min_stock_alert).length} référence(s)</div>
+        <div className="bg-slate-900/90 p-5 rounded-2xl border border-slate-700/80 shadow-md">
+          <div className="flex items-center gap-3 text-slate-300 mb-1 text-sm font-medium"><AlertTriangle size={18} className="text-amber-400" /> Alertes stock bas</div>
+          <div className="text-2xl font-bold text-amber-400 tracking-tight">{products.filter((p) => getProductStock(p.id) <= p.min_stock_alert).length} référence(s)</div>
         </div>
       </div>
 
       {/* FORMULAIRES */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* 1. CRÉATION PRODUIT */}
-        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4 shadow-sm">
+        <div className="bg-slate-900/90 p-6 rounded-2xl border border-slate-700/80 space-y-4 shadow-md">
           <h2 className="text-base font-bold flex items-center gap-2 text-indigo-300"><Plus size={18} /> 1. Créer une référence</h2>
           <form onSubmit={addProduct} className="space-y-3">
             <input
               type="text"
               placeholder="Marque / Format (ex: Anycubic, Cailab 200G)"
-              className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-indigo-500 text-white"
+              className="w-full bg-slate-950 border border-slate-700/80 p-2.5 rounded-xl text-sm outline-none focus:border-indigo-400 text-white placeholder:text-slate-500"
               value={brand}
               onChange={(e) => setBrand(e.target.value)}
               required
             />
             <div className="grid grid-cols-2 gap-2">
               <select
-                className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-indigo-500 text-white"
+                className="bg-slate-950 border border-slate-700/80 p-2.5 rounded-xl text-sm outline-none focus:border-indigo-400 text-white font-medium"
                 value={material}
                 onChange={(e) => setMaterial(e.target.value)}
               >
@@ -556,7 +556,7 @@ export default function ActionsPage() {
               <input
                 type="text"
                 placeholder="Couleur (ex: Rouge)"
-                className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-indigo-500 text-white"
+                className="bg-slate-950 border border-slate-700/80 p-2.5 rounded-xl text-sm outline-none focus:border-indigo-400 text-white placeholder:text-slate-500"
                 value={color}
                 onChange={(e) => setColor(e.target.value)}
                 required
@@ -566,24 +566,24 @@ export default function ActionsPage() {
               type="number"
               step="0.01"
               placeholder="Prix de vente conseillé (€)"
-              className="w-full bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-indigo-500 text-white"
+              className="w-full bg-slate-950 border border-slate-700/80 p-2.5 rounded-xl text-sm outline-none focus:border-indigo-400 text-white placeholder:text-slate-500 font-mono"
               value={defaultSellPrice || ''}
               onChange={(e) => setDefaultSellPrice(Number(e.target.value))}
             />
-            <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 font-semibold py-2.5 rounded-xl transition text-white">
+            <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 font-bold py-2.5 rounded-xl transition text-white shadow-md shadow-indigo-600/30">
               Créer l'article
             </button>
           </form>
         </div>
 
         {/* 2. ACHAT MULTI-LIGNES */}
-        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4 shadow-sm">
+        <div className="bg-slate-900/90 p-6 rounded-2xl border border-slate-700/80 space-y-4 shadow-md">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold flex items-center gap-2 text-cyan-300">
               <ArrowDownLeft size={18} /> 2. Enregistrer un achat
             </h2>
             {currentPurchaseTotal > 0 && (
-              <span className="text-xs font-bold font-mono text-cyan-400 bg-cyan-500/10 px-2.5 py-1 rounded-lg border border-cyan-500/20">
+              <span className="text-xs font-bold font-mono text-cyan-400 bg-cyan-500/15 px-2.5 py-1 rounded-lg border border-cyan-500/30">
                 Total : {currentPurchaseTotal.toFixed(2)} €
               </span>
             )}
@@ -592,7 +592,7 @@ export default function ActionsPage() {
           <form onSubmit={recordMultiPurchase} className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
               <select
-                className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-cyan-500 text-white"
+                className="bg-slate-950 border border-slate-700/80 p-2.5 rounded-xl text-sm outline-none focus:border-cyan-400 text-white font-medium"
                 value={supplier}
                 onChange={(e) => setSupplier(e.target.value)}
               >
@@ -603,7 +603,7 @@ export default function ActionsPage() {
               </select>
               <input
                 type="date"
-                className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-cyan-500 text-white"
+                className="bg-slate-950 border border-slate-700/80 p-2.5 rounded-xl text-sm outline-none focus:border-cyan-400 text-white font-mono"
                 value={purchaseDate}
                 onChange={(e) => setPurchaseDate(e.target.value)}
                 required
@@ -619,11 +619,11 @@ export default function ActionsPage() {
                 const joybuyStatus = selectedProd ? getJoybuyStatus(selectedProd) : { isJoybuy: false, inStock: false };
 
                 return (
-                  <div key={idx} className="p-3 bg-slate-950/80 rounded-xl border border-slate-800/90 space-y-2.5">
+                  <div key={idx} className="p-3 bg-slate-950/90 rounded-xl border border-slate-800 space-y-2.5">
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] font-bold text-slate-400">#{idx + 1}</span>
                       <select
-                        className="w-full bg-slate-900 border border-slate-800 p-2 rounded-lg text-xs outline-none focus:border-cyan-500 text-white font-medium"
+                        className="w-full bg-slate-900 border border-slate-700/80 p-2 rounded-lg text-xs outline-none focus:border-cyan-400 text-white font-medium"
                         value={line.productId}
                         onChange={(e) => handlePurchaseLineProductChange(idx, e.target.value)}
                       >
@@ -638,7 +638,7 @@ export default function ActionsPage() {
                         <button
                           type="button"
                           onClick={() => removePurchaseLine(idx)}
-                          className="p-1.5 text-slate-500 hover:text-rose-400 transition"
+                          className="p-1.5 text-slate-400 hover:text-rose-400 transition"
                           title="Supprimer la ligne"
                         >
                           <Trash2 size={14} />
@@ -666,11 +666,11 @@ export default function ActionsPage() {
                           
                           {joybuyStatus.isJoybuy && (
                             joybuyStatus.inStock ? (
-                              <span className="text-[10px] font-bold px-1.5 py-0.2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded">
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 rounded">
                                 Dispo Joybuy
                               </span>
                             ) : (
-                              <span className="text-[10px] font-bold px-1.5 py-0.2 bg-rose-500/10 text-rose-400 border border-rose-500/30 rounded">
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 bg-rose-500/15 text-rose-400 border border-rose-500/30 rounded">
                                 Rupture Joybuy
                               </span>
                             )
@@ -678,8 +678,8 @@ export default function ActionsPage() {
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <span className="text-slate-400">Stock : <strong className="text-cyan-400 font-mono">{stockQty}</strong></span>
-                          <span className="text-slate-500 font-mono">CUMP {cumpVal.toFixed(2)}€</span>
+                          <span className="text-slate-300">Stock : <strong className="text-cyan-400 font-mono">{stockQty}</strong></span>
+                          <span className="text-slate-400 font-mono">CUMP {cumpVal.toFixed(2)}€</span>
                         </div>
                       </div>
                     )}
@@ -689,7 +689,7 @@ export default function ActionsPage() {
                         type="number"
                         min="1"
                         placeholder="Qté"
-                        className="bg-slate-900 border border-slate-800 p-2 rounded-lg text-xs outline-none focus:border-cyan-500 text-white"
+                        className="bg-slate-900 border border-slate-700/80 p-2 rounded-lg text-xs outline-none focus:border-cyan-400 text-white font-mono"
                         value={line.quantity}
                         onChange={(e) => handlePurchaseLineQuantityChange(idx, Number(e.target.value))}
                         disabled={!line.productId}
@@ -699,7 +699,7 @@ export default function ActionsPage() {
                         type="number"
                         step="0.01"
                         placeholder="Coût unit. (€)"
-                        className="bg-slate-900 border border-slate-800 p-2 rounded-lg text-xs outline-none focus:border-cyan-500 text-white font-mono"
+                        className="bg-slate-900 border border-slate-700/80 p-2 rounded-lg text-xs outline-none focus:border-cyan-400 text-white font-mono"
                         value={line.unitCost || ''}
                         onChange={(e) => handlePurchaseLineCostChange(idx, Number(e.target.value))}
                         disabled={!line.productId}
@@ -714,14 +714,14 @@ export default function ActionsPage() {
             <button
               type="button"
               onClick={addEmptyPurchaseLine}
-              className="w-full text-xs py-1.5 border border-dashed border-slate-700 hover:border-cyan-500/50 text-slate-400 hover:text-cyan-400 rounded-xl transition flex items-center justify-center gap-1"
+              className="w-full text-xs py-2 border border-dashed border-slate-700 hover:border-cyan-500/60 text-slate-300 hover:text-cyan-400 rounded-xl transition flex items-center justify-center gap-1 font-medium"
             >
               <Plus size={14} /> Ajouter une bobine reçue
             </button>
 
             <button 
               type="submit" 
-              className="w-full bg-cyan-600 hover:bg-cyan-500 font-semibold py-2.5 rounded-xl transition text-white shadow-lg shadow-cyan-600/20"
+              className="w-full bg-cyan-600 hover:bg-cyan-500 font-bold py-2.5 rounded-xl transition text-white shadow-md shadow-cyan-600/30"
             >
               Entrer le lot en stock (+ CUMP)
             </button>
@@ -729,13 +729,13 @@ export default function ActionsPage() {
         </div>
 
         {/* 3. VENTE MULTI-LIGNES */}
-        <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4 shadow-sm">
+        <div className="bg-slate-900/90 p-6 rounded-2xl border border-slate-700/80 space-y-4 shadow-md">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold flex items-center gap-2 text-emerald-300">
               <ShoppingCart size={18} /> 3. Enregistrer une vente
             </h2>
             {currentSaleTotal > 0 && (
-              <span className="text-xs font-bold font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
+              <span className="text-xs font-bold font-mono text-emerald-400 bg-emerald-500/15 px-2.5 py-1 rounded-lg border border-emerald-500/30">
                 Total : {currentSaleTotal.toFixed(2)} €
               </span>
             )}
@@ -744,7 +744,7 @@ export default function ActionsPage() {
           <form onSubmit={recordMultiSale} className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
               <select
-                className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-emerald-500 text-white"
+                className="bg-slate-950 border border-slate-700/80 p-2.5 rounded-xl text-sm outline-none focus:border-emerald-400 text-white font-medium"
                 value={platform}
                 onChange={(e) => setPlatform(e.target.value)}
               >
@@ -755,7 +755,7 @@ export default function ActionsPage() {
               </select>
               <input
                 type="date"
-                className="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-sm outline-none focus:border-emerald-500 text-white"
+                className="bg-slate-950 border border-slate-700/80 p-2.5 rounded-xl text-sm outline-none focus:border-emerald-400 text-white font-mono"
                 value={saleDate}
                 onChange={(e) => setSaleDate(e.target.value)}
                 required
@@ -771,11 +771,11 @@ export default function ActionsPage() {
                 const saleJoybuy = selectedProd ? getJoybuyStatus(selectedProd) : { isJoybuy: false, inStock: false };
 
                 return (
-                  <div key={idx} className="p-3 bg-slate-950/80 rounded-xl border border-slate-800/90 space-y-2.5">
+                  <div key={idx} className="p-3 bg-slate-950/90 rounded-xl border border-slate-800 space-y-2.5">
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] font-bold text-slate-400">#{idx + 1}</span>
                       <select
-                        className="w-full bg-slate-900 border border-slate-800 p-2 rounded-lg text-xs outline-none focus:border-emerald-500 text-white font-medium"
+                        className="w-full bg-slate-900 border border-slate-700/80 p-2 rounded-lg text-xs outline-none focus:border-emerald-400 text-white font-medium"
                         value={line.productId}
                         onChange={(e) => handleLineProductChange(idx, e.target.value)}
                       >
@@ -790,7 +790,7 @@ export default function ActionsPage() {
                         <button
                           type="button"
                           onClick={() => removeSaleLine(idx)}
-                          className="p-1.5 text-slate-500 hover:text-rose-400 transition"
+                          className="p-1.5 text-slate-400 hover:text-rose-400 transition"
                           title="Supprimer la ligne"
                         >
                           <Trash2 size={14} />
@@ -818,11 +818,11 @@ export default function ActionsPage() {
                           
                           {saleJoybuy.isJoybuy && (
                             saleJoybuy.inStock ? (
-                              <span className="text-[10px] font-bold px-1.5 py-0.2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded">
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 rounded">
                                 Dispo Joybuy
                               </span>
                             ) : (
-                              <span className="text-[10px] font-bold px-1.5 py-0.2 bg-rose-500/10 text-rose-400 border border-rose-500/30 rounded">
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 bg-rose-500/15 text-rose-400 border border-rose-500/30 rounded">
                                 Rupture Joybuy
                               </span>
                             )
@@ -831,15 +831,15 @@ export default function ActionsPage() {
 
                         <div className="flex items-center gap-2">
                           {stockQty > 0 ? (
-                            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">
+                            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 font-bold border border-emerald-500/30">
                               <CheckCircle2 size={11} /> {stockQty} en stock
                             </span>
                           ) : (
-                            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-400 font-bold border border-rose-500/20">
+                            <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-400 font-bold border border-rose-500/30">
                               <AlertCircle size={11} /> Rupture
                             </span>
                           )}
-                          <span className="text-slate-500 font-mono">CUMP {cumpVal.toFixed(2)}€</span>
+                          <span className="text-slate-400 font-mono">CUMP {cumpVal.toFixed(2)}€</span>
                         </div>
                       </div>
                     )}
@@ -849,19 +849,21 @@ export default function ActionsPage() {
                         type="number"
                         min="1"
                         placeholder="Qté"
-                        className="bg-slate-900 border border-slate-800 p-2 rounded-lg text-xs outline-none focus:border-emerald-500 text-white"
+                        className="bg-slate-900 border border-slate-700/80 p-2 rounded-lg text-xs outline-none focus:border-emerald-400 text-white font-mono"
                         value={line.quantity}
                         onChange={(e) => handleLineQuantityChange(idx, Number(e.target.value))}
                         disabled={!line.productId}
+                        required
                       />
                       <input
                         type="number"
                         step="0.01"
                         placeholder="Prix unit. (€)"
-                        className="bg-slate-900 border border-slate-800 p-2 rounded-lg text-xs outline-none focus:border-emerald-500 text-white font-mono"
+                        className="bg-slate-900 border border-slate-700/80 p-2 rounded-lg text-xs outline-none focus:border-emerald-400 text-white font-mono font-bold text-emerald-400"
                         value={line.unitPrice || ''}
                         onChange={(e) => handleLinePriceChange(idx, Number(e.target.value))}
                         disabled={!line.productId}
+                        required
                       />
                     </div>
                   </div>
@@ -872,14 +874,14 @@ export default function ActionsPage() {
             <button
               type="button"
               onClick={addEmptySaleLine}
-              className="w-full text-xs py-1.5 border border-dashed border-slate-700 hover:border-emerald-500/50 text-slate-400 hover:text-emerald-400 rounded-xl transition flex items-center justify-center gap-1"
+              className="w-full text-xs py-2 border border-dashed border-slate-700 hover:border-emerald-500/60 text-slate-300 hover:text-emerald-400 rounded-xl transition flex items-center justify-center gap-1 font-medium"
             >
               <Plus size={14} /> Ajouter une bobine supplémentaire
             </button>
 
             <button 
               type="submit" 
-              className="w-full bg-emerald-600 hover:bg-emerald-500 font-semibold py-2.5 rounded-xl transition text-white shadow-lg shadow-emerald-600/20"
+              className="w-full bg-emerald-600 hover:bg-emerald-500 font-bold py-2.5 rounded-xl transition text-white shadow-md shadow-emerald-600/30"
             >
               Valider la vente du lot
             </button>
