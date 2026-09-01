@@ -114,7 +114,7 @@ export default function HistoryPage() {
   async function fetchData() {
     setLoading(true);
     try {
-      const { data: prodData } = await supabase.from('products').select('*');
+      const { data: prodData } = await supabase.from('products').select('*').order('brand', { ascending: true });
       const { data: pOrders } = await supabase.from('purchase_orders').select('*');
       const { data: pItems } = await supabase.from('purchase_items').select('*');
       const { data: sOrders } = await supabase.from('sales_orders').select('*');
@@ -210,6 +210,22 @@ export default function HistoryPage() {
     setEditSaleCreatedAt(localISOTime);
   }
 
+  function handleAddSaleItem() {
+    if (products.length === 0) return;
+    const firstProd = products[0];
+    const newItem: SaleItem = {
+      id: 'temp_' + Date.now() + Math.random(),
+      sales_order_id: editingSale?.id,
+      product_id: firstProd.id,
+      quantity: 1,
+      unit_sell_price: firstProd.default_sell_price || 0,
+      unit_cost_snapshot: firstProd.avg_buy_price || 0,
+      created_at: new Date().toISOString(),
+      product: firstProd,
+    };
+    setEditSaleItems(prev => [...prev, newItem]);
+  }
+
   async function handleSaveSaleEdit(e: React.FormEvent) {
     e.preventDefault();
     if (!editingSale) return;
@@ -235,37 +251,90 @@ export default function HistoryPage() {
 
       if (ordErr) throw ordErr;
 
-      // 2. Réconcilier les items et le stock
       const originalItems = editingSale.items;
 
+      // A. Bobines supprimées => Réintégrer l'ancien stock
       for (const orig of originalItems) {
-        const updatedItem = editSaleItems.find(it => it.id === orig.id);
-        if (!updatedItem) {
-          // Bobine supprimée du lot => Réinjecter l'ancienne quantité au stock
+        const stillExists = editSaleItems.find(it => it.id === orig.id);
+        if (!stillExists) {
           await supabase.from('sales_items').delete().eq('id', orig.id);
           if (orig.product_id) {
-            const prod = products.find(p => p.id === orig.product_id);
-            if (prod) {
+            const { data: currentP } = await supabase.from('products').select('stock_quantity').eq('id', orig.product_id).single();
+            if (currentP) {
               await supabase.from('products').update({
-                stock_quantity: prod.stock_quantity + Number(orig.quantity)
+                stock_quantity: currentP.stock_quantity + Number(orig.quantity)
               }).eq('id', orig.product_id);
             }
           }
-        } else {
-          // Mise à jour de la quantité et/ou du prix unitaire
-          const qtyDiff = Number(updatedItem.quantity) - Number(orig.quantity);
-          await supabase.from('sales_items').update({
-            quantity: Number(updatedItem.quantity),
-            unit_sell_price: Number(updatedItem.unit_sell_price),
-            created_at: updatedTimestamp,
-          }).eq('id', updatedItem.id);
+        }
+      }
 
-          if (qtyDiff !== 0 && orig.product_id) {
-            const prod = products.find(p => p.id === orig.product_id);
-            if (prod) {
+      // B. Bobines modifiées ou ajoutées
+      for (const item of editSaleItems) {
+        const isNew = item.id.startsWith('temp_');
+
+        if (isNew) {
+          // Nouvel item inséré => Déduire le stock
+          await supabase.from('sales_items').insert({
+            sales_order_id: editingSale.id,
+            product_id: item.product_id,
+            quantity: Number(item.quantity),
+            unit_sell_price: Number(item.unit_sell_price),
+            unit_cost_snapshot: item.unit_cost_snapshot || 0,
+            created_at: updatedTimestamp,
+          });
+
+          if (item.product_id) {
+            const { data: currentP } = await supabase.from('products').select('stock_quantity').eq('id', item.product_id).single();
+            if (currentP) {
               await supabase.from('products').update({
-                stock_quantity: Math.max(0, prod.stock_quantity - qtyDiff)
-              }).eq('id', orig.product_id);
+                stock_quantity: Math.max(0, currentP.stock_quantity - Number(item.quantity))
+              }).eq('id', item.product_id);
+            }
+          }
+        } else {
+          // Item existant
+          const orig = originalItems.find(o => o.id === item.id);
+          if (!orig) continue;
+
+          const productChanged = orig.product_id !== item.product_id;
+
+          await supabase.from('sales_items').update({
+            product_id: item.product_id,
+            quantity: Number(item.quantity),
+            unit_sell_price: Number(item.unit_sell_price),
+            created_at: updatedTimestamp,
+          }).eq('id', item.id);
+
+          if (productChanged) {
+            // Remettre stock sur l'ancien produit
+            if (orig.product_id) {
+              const { data: oldP } = await supabase.from('products').select('stock_quantity').eq('id', orig.product_id).single();
+              if (oldP) {
+                await supabase.from('products').update({
+                  stock_quantity: oldP.stock_quantity + Number(orig.quantity)
+                }).eq('id', orig.product_id);
+              }
+            }
+            // Déduire stock sur le nouveau produit
+            if (item.product_id) {
+              const { data: newP } = await supabase.from('products').select('stock_quantity').eq('id', item.product_id).single();
+              if (newP) {
+                await supabase.from('products').update({
+                  stock_quantity: Math.max(0, newP.stock_quantity - Number(item.quantity))
+                }).eq('id', item.product_id);
+              }
+            }
+          } else {
+            // Même produit, vérifier changement de quantité
+            const qtyDiff = Number(item.quantity) - Number(orig.quantity);
+            if (qtyDiff !== 0 && item.product_id) {
+              const { data: currentP } = await supabase.from('products').select('stock_quantity').eq('id', item.product_id).single();
+              if (currentP) {
+                await supabase.from('products').update({
+                  stock_quantity: Math.max(0, currentP.stock_quantity - qtyDiff)
+                }).eq('id', item.product_id);
+              }
             }
           }
         }
@@ -274,7 +343,7 @@ export default function HistoryPage() {
       setEditingSale(null);
       await fetchData();
     } catch (err: any) {
-      alert('Erreur lors de la modification de la vente : ' + err.message);
+      alert('Erreur lors de la modification : ' + err.message);
     } finally {
       setSavingEdit(false);
     }
@@ -290,6 +359,21 @@ export default function HistoryPage() {
     const tzOffset = d.getTimezoneOffset() * 60000;
     const localISOTime = new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
     setEditPurchaseCreatedAt(localISOTime);
+  }
+
+  function handleAddPurchaseItem() {
+    if (products.length === 0) return;
+    const firstProd = products[0];
+    const newItem: PurchaseItem = {
+      id: 'temp_' + Date.now() + Math.random(),
+      purchase_order_id: editingPurchase?.id,
+      product_id: firstProd.id,
+      quantity: 1,
+      unit_cost: firstProd.avg_buy_price || 0,
+      created_at: new Date().toISOString(),
+      product: firstProd,
+    };
+    setEditPurchaseItems(prev => [...prev, newItem]);
   }
 
   async function handleSavePurchaseEdit(e: React.FormEvent) {
@@ -316,37 +400,89 @@ export default function HistoryPage() {
 
       if (ordErr) throw ordErr;
 
-      // 2. Réconcilier les items et ajuster le stock
       const originalItems = editingPurchase.items;
 
+      // A. Bobines supprimées => Déduire l'ancien stock
       for (const orig of originalItems) {
-        const updatedItem = editPurchaseItems.find(it => it.id === orig.id);
-        if (!updatedItem) {
-          // Bobine retirée de la commande => Déduire l'ancienne quantité du stock
+        const stillExists = editPurchaseItems.find(it => it.id === orig.id);
+        if (!stillExists) {
           await supabase.from('purchase_items').delete().eq('id', orig.id);
           if (orig.product_id) {
-            const prod = products.find(p => p.id === orig.product_id);
-            if (prod) {
+            const { data: currentP } = await supabase.from('products').select('stock_quantity').eq('id', orig.product_id).single();
+            if (currentP) {
               await supabase.from('products').update({
-                stock_quantity: Math.max(0, prod.stock_quantity - Number(orig.quantity))
+                stock_quantity: Math.max(0, currentP.stock_quantity - Number(orig.quantity))
               }).eq('id', orig.product_id);
             }
           }
-        } else {
-          // Quantité ou coût modifié
-          const qtyDiff = Number(updatedItem.quantity) - Number(orig.quantity);
-          await supabase.from('purchase_items').update({
-            quantity: Number(updatedItem.quantity),
-            unit_cost: Number(updatedItem.unit_cost),
-            created_at: updatedTimestamp,
-          }).eq('id', updatedItem.id);
+        }
+      }
 
-          if (qtyDiff !== 0 && orig.product_id) {
-            const prod = products.find(p => p.id === orig.product_id);
-            if (prod) {
+      // B. Bobines modifiées ou ajoutées
+      for (const item of editPurchaseItems) {
+        const isNew = item.id.startsWith('temp_');
+
+        if (isNew) {
+          // Nouvel item inséré => Ajouter au stock
+          await supabase.from('purchase_items').insert({
+            purchase_order_id: editingPurchase.id,
+            product_id: item.product_id,
+            quantity: Number(item.quantity),
+            unit_cost: Number(item.unit_cost),
+            created_at: updatedTimestamp,
+          });
+
+          if (item.product_id) {
+            const { data: currentP } = await supabase.from('products').select('stock_quantity').eq('id', item.product_id).single();
+            if (currentP) {
               await supabase.from('products').update({
-                stock_quantity: Math.max(0, prod.stock_quantity + qtyDiff)
-              }).eq('id', orig.product_id);
+                stock_quantity: currentP.stock_quantity + Number(item.quantity)
+              }).eq('id', item.product_id);
+            }
+          }
+        } else {
+          // Item existant
+          const orig = originalItems.find(o => o.id === item.id);
+          if (!orig) continue;
+
+          const productChanged = orig.product_id !== item.product_id;
+
+          await supabase.from('purchase_items').update({
+            product_id: item.product_id,
+            quantity: Number(item.quantity),
+            unit_cost: Number(item.unit_cost),
+            created_at: updatedTimestamp,
+          }).eq('id', item.id);
+
+          if (productChanged) {
+            // Déduire stock de l'ancien produit
+            if (orig.product_id) {
+              const { data: oldP } = await supabase.from('products').select('stock_quantity').eq('id', orig.product_id).single();
+              if (oldP) {
+                await supabase.from('products').update({
+                  stock_quantity: Math.max(0, oldP.stock_quantity - Number(orig.quantity))
+                }).eq('id', orig.product_id);
+              }
+            }
+            // Ajouter stock au nouveau produit
+            if (item.product_id) {
+              const { data: newP } = await supabase.from('products').select('stock_quantity').eq('id', item.product_id).single();
+              if (newP) {
+                await supabase.from('products').update({
+                  stock_quantity: newP.stock_quantity + Number(item.quantity)
+                }).eq('id', item.product_id);
+              }
+            }
+          } else {
+            // Même produit, ajuster la différence
+            const qtyDiff = Number(item.quantity) - Number(orig.quantity);
+            if (qtyDiff !== 0 && item.product_id) {
+              const { data: currentP } = await supabase.from('products').select('stock_quantity').eq('id', item.product_id).single();
+              if (currentP) {
+                await supabase.from('products').update({
+                  stock_quantity: Math.max(0, currentP.stock_quantity + qtyDiff)
+                }).eq('id', item.product_id);
+              }
             }
           }
         }
@@ -448,8 +584,8 @@ export default function HistoryPage() {
                     
                     <button
                       onClick={() => handleOpenSaleEdit(group)}
-                      className="p-2 text-slate-400 hover:text-cyan-400 bg-slate-800/60 hover:bg-slate-800 rounded-xl transition"
-                      title="Modifier la vente et les bobines"
+                      className="p-2 text-slate-400 hover:text-emerald-400 bg-slate-800/60 hover:bg-slate-800 rounded-xl transition"
+                      title="Modifier le lot vendu et les bobines"
                     >
                       <Edit3 size={16} />
                     </button>
@@ -602,7 +738,7 @@ export default function HistoryPage() {
                     <button
                       onClick={() => handleOpenPurchaseEdit(group)}
                       className="p-2 text-slate-400 hover:text-cyan-400 bg-slate-800/60 hover:bg-slate-800 rounded-xl transition"
-                      title="Modifier l'achat et les bobines"
+                      title="Modifier la commande d'achat et les bobines"
                     >
                       <Edit3 size={16} />
                     </button>
@@ -668,7 +804,7 @@ export default function HistoryPage() {
       {/* MODALE DE MODIFICATION D'UNE VENTE */}
       {editingSale && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-lg w-full space-y-4 shadow-2xl my-8 max-h-[90vh] overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-xl w-full space-y-4 shadow-2xl my-8 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-2 border-b border-slate-800">
               <h3 className="font-bold text-white text-base flex items-center gap-2">
                 <Edit3 size={18} className="text-emerald-400" />
@@ -742,25 +878,62 @@ export default function HistoryPage() {
                 </div>
               </div>
 
-              {/* ÉDITION DES BOBINES VENDUES */}
+              {/* ÉDITION DES BOBINES VENDUES AVEC CHANGEMENT DE COULEUR / PRODUIT */}
               <div className="space-y-2 pt-2 border-t border-slate-800">
-                <label className="text-xs font-bold text-white block">
-                  Bobines dans le lot ({editSaleItems.length})
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-white block">
+                    Bobines dans le lot ({editSaleItems.length})
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleAddSaleItem}
+                    className="flex items-center gap-1 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-2.5 py-1 rounded-lg border border-emerald-500/20 transition"
+                  >
+                    <Plus size={13} /> Ajouter une bobine
+                  </button>
+                </div>
 
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                   {editSaleItems.map((item, idx) => (
-                    <div key={item.id || idx} className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="text-xs font-semibold text-white truncate">
-                          [{item.product?.material}] {item.product?.brand}
+                    <div key={item.id || idx} className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        {/* Sélecteur du produit / couleur */}
+                        <div className="flex-1 min-w-0">
+                          <label className="text-[10px] text-slate-500 block mb-0.5">Bobine / Couleur</label>
+                          <select
+                            value={item.product_id}
+                            onChange={(e) => {
+                              const newProdId = e.target.value;
+                              const selectedProd = products.find(p => p.id === newProdId);
+                              setEditSaleItems(prev => prev.map((it, i) => i === idx ? {
+                                ...it,
+                                product_id: newProdId,
+                                product: selectedProd,
+                              } : it));
+                            }}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500"
+                          >
+                            {products.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                [{p.material}] {p.brand} - {p.color} ({p.stock_quantity} en stock)
+                              </option>
+                            ))}
+                          </select>
                         </div>
-                        <div className="text-[11px] text-slate-400">{item.product?.color}</div>
+
+                        <button
+                          type="button"
+                          onClick={() => setEditSaleItems(prev => prev.filter((_, i) => i !== idx))}
+                          className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg mt-3 transition"
+                          title="Supprimer cette ligne"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
-                        <div>
-                          <span className="text-[10px] text-slate-500 block">Qté</span>
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1">
+                          <span className="text-[10px] text-slate-500 block">Quantité</span>
                           <input
                             type="number"
                             min="1"
@@ -769,11 +942,11 @@ export default function HistoryPage() {
                               const val = Math.max(1, parseInt(e.target.value) || 1);
                               setEditSaleItems(prev => prev.map((it, i) => i === idx ? { ...it, quantity: val } : it));
                             }}
-                            className="w-14 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white font-mono text-center"
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white font-mono text-center"
                           />
                         </div>
 
-                        <div>
+                        <div className="flex-1">
                           <span className="text-[10px] text-slate-500 block">Prix (€/u)</span>
                           <input
                             type="number"
@@ -784,18 +957,9 @@ export default function HistoryPage() {
                               const val = parseFloat(e.target.value) || 0;
                               setEditSaleItems(prev => prev.map((it, i) => i === idx ? { ...it, unit_sell_price: val } : it));
                             }}
-                            className="w-16 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-emerald-400 font-mono text-center font-bold"
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-emerald-400 font-mono text-center font-bold"
                           />
                         </div>
-
-                        <button
-                          type="button"
-                          onClick={() => setEditSaleItems(prev => prev.filter((_, i) => i !== idx))}
-                          className="p-1 text-slate-500 hover:text-rose-400 mt-3 transition"
-                          title="Supprimer cette ligne"
-                        >
-                          <Trash2 size={15} />
-                        </button>
                       </div>
                     </div>
                   ))}
@@ -827,7 +991,7 @@ export default function HistoryPage() {
       {/* MODALE DE MODIFICATION D'UN ACHAT */}
       {editingPurchase && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-lg w-full space-y-4 shadow-2xl my-8 max-h-[90vh] overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-xl w-full space-y-4 shadow-2xl my-8 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-2 border-b border-slate-800">
               <h3 className="font-bold text-white text-base flex items-center gap-2">
                 <Edit3 size={18} className="text-cyan-400" />
@@ -868,25 +1032,61 @@ export default function HistoryPage() {
                 />
               </div>
 
-              {/* ÉDITION DES BOBINES ACHETÉES */}
+              {/* ÉDITION DES BOBINES ACHETÉES AVEC CHANGEMENT DE PRODUIT */}
               <div className="space-y-2 pt-2 border-t border-slate-800">
-                <label className="text-xs font-bold text-white block">
-                  Bobines reçues ({editPurchaseItems.length})
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-white block">
+                    Bobines reçues ({editPurchaseItems.length})
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleAddPurchaseItem}
+                    className="flex items-center gap-1 text-[11px] font-bold text-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20 px-2.5 py-1 rounded-lg border border-cyan-500/20 transition"
+                  >
+                    <Plus size={13} /> Ajouter une bobine
+                  </button>
+                </div>
 
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                   {editPurchaseItems.map((item, idx) => (
-                    <div key={item.id || idx} className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="text-xs font-semibold text-white truncate">
-                          [{item.product?.material}] {item.product?.brand}
+                    <div key={item.id || idx} className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <label className="text-[10px] text-slate-500 block mb-0.5">Bobine / Couleur</label>
+                          <select
+                            value={item.product_id}
+                            onChange={(e) => {
+                              const newProdId = e.target.value;
+                              const selectedProd = products.find(p => p.id === newProdId);
+                              setEditPurchaseItems(prev => prev.map((it, i) => i === idx ? {
+                                ...it,
+                                product_id: newProdId,
+                                product: selectedProd,
+                              } : it));
+                            }}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500"
+                          >
+                            {products.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                [{p.material}] {p.brand} - {p.color}
+                              </option>
+                            ))}
+                          </select>
                         </div>
-                        <div className="text-[11px] text-slate-400">{item.product?.color}</div>
+
+                        <button
+                          type="button"
+                          onClick={() => setEditPurchaseItems(prev => prev.filter((_, i) => i !== idx))}
+                          className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg mt-3 transition"
+                          title="Supprimer cette ligne"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
-                        <div>
-                          <span className="text-[10px] text-slate-500 block">Qté</span>
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1">
+                          <span className="text-[10px] text-slate-500 block">Quantité</span>
                           <input
                             type="number"
                             min="1"
@@ -895,11 +1095,11 @@ export default function HistoryPage() {
                               const val = Math.max(1, parseInt(e.target.value) || 1);
                               setEditPurchaseItems(prev => prev.map((it, i) => i === idx ? { ...it, quantity: val } : it));
                             }}
-                            className="w-14 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white font-mono text-center"
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white font-mono text-center"
                           />
                         </div>
 
-                        <div>
+                        <div className="flex-1">
                           <span className="text-[10px] text-slate-500 block">Coût (€/u)</span>
                           <input
                             type="number"
@@ -910,18 +1110,9 @@ export default function HistoryPage() {
                               const val = parseFloat(e.target.value) || 0;
                               setEditPurchaseItems(prev => prev.map((it, i) => i === idx ? { ...it, unit_cost: val } : it));
                             }}
-                            className="w-16 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-rose-400 font-mono text-center font-bold"
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-rose-400 font-mono text-center font-bold"
                           />
                         </div>
-
-                        <button
-                          type="button"
-                          onClick={() => setEditPurchaseItems(prev => prev.filter((_, i) => i !== idx))}
-                          className="p-1 text-slate-500 hover:text-rose-400 mt-3 transition"
-                          title="Supprimer cette ligne"
-                        >
-                          <Trash2 size={15} />
-                        </button>
                       </div>
                     </div>
                   ))}
