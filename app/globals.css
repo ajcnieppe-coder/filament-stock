@@ -1,21 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --background: #020617; /* Slate 950 sombre */
-  --foreground: #f8fafc;
+  --background: #090d16 !important;
+  --foreground: #f8fafc !important;
   color-scheme: dark;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-html,
 body {
-  background-color: #020617;
-  color: #f8fafc;
-  min-height: 100vh;
+  background-color: #090d16 !important;
+  color: #f8fafc !important;
 }
