@@ -88,6 +88,20 @@ function getColorHex(colorName: string): { bg: string; border: string } {
   return { bg: '#6366f1', border: '#4338ca' };
 }
 
+function getExactTimestamp(dateStr: string): string {
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+
+  if (dateStr === today) {
+    return now.toISOString();
+  }
+
+  // Date antérieure sélectionnée manuellement : injecter l'heure courante locale
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const target = new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds());
+  return target.toISOString();
+}
+
 export default function ActionsPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [passwordInput, setPasswordInput] = useState('');
@@ -307,7 +321,7 @@ export default function ActionsPage() {
       return;
     }
 
-    const formattedDate = new Date(purchaseDate + 'T12:00:00Z').toISOString();
+    const formattedDate = getExactTimestamp(purchaseDate);
 
     const { data: order, error: orderErr } = await supabase
       .from('purchase_orders')
@@ -391,7 +405,7 @@ export default function ActionsPage() {
       return;
     }
 
-    const formattedDate = new Date(saleDate + 'T12:00:00Z').toISOString();
+    const formattedDate = getExactTimestamp(saleDate);
 
     const { data: order, error: orderErr } = await supabase
       .from('sales_orders')
@@ -482,7 +496,6 @@ export default function ActionsPage() {
 
   return (
     <div className="space-y-6">
-      {/* SECTION VEILLE STOCK FOURNISSEUR */}
       {supplierLinks.length > 0 && (
         <div style={{ backgroundColor: '#1e293b', borderColor: '#334155' }} className="p-4 rounded-2xl border shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -513,7 +526,6 @@ export default function ActionsPage() {
         </div>
       )}
 
-      {/* KPI EN-TÊTE (BLOCS PLUS CLAIRS) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div style={{ backgroundColor: '#1e293b', borderColor: '#334155' }} className="p-5 rounded-2xl border shadow-lg">
           <div className="flex items-center gap-3 text-slate-300 mb-1 text-sm font-medium"><Package size={18} className="text-indigo-400" /> Bobines en stock</div>
@@ -529,9 +541,7 @@ export default function ActionsPage() {
         </div>
       </div>
 
-      {/* 3 FORMULAIRES DU MILIEU (FOND PLUS CLAIR & CONTRASTE NET) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 1. CRÉATION PRODUIT */}
         <div style={{ backgroundColor: '#1e293b', borderColor: '#334155' }} className="p-6 rounded-2xl border space-y-4 shadow-xl">
           <h2 className="text-base font-bold flex items-center gap-2 text-indigo-300"><Plus size={18} /> 1. Créer une référence</h2>
           <form onSubmit={addProduct} className="space-y-3">
@@ -581,7 +591,6 @@ export default function ActionsPage() {
           </form>
         </div>
 
-        {/* 2. ACHAT MULTI-LIGNES */}
         <div style={{ backgroundColor: '#1e293b', borderColor: '#334155' }} className="p-6 rounded-2xl border space-y-4 shadow-xl">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold flex items-center gap-2 text-cyan-300">
@@ -739,7 +748,6 @@ export default function ActionsPage() {
           </form>
         </div>
 
-        {/* 3. VENTE MULTI-LIGNES */}
         <div style={{ backgroundColor: '#1e293b', borderColor: '#334155' }} className="p-6 rounded-2xl border space-y-4 shadow-xl">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold flex items-center gap-2 text-emerald-300">
