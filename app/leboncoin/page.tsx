@@ -126,7 +126,6 @@ export default function LeboncoinPage() {
     return getProductPurchased(pId) - getProductSold(pId);
   }
 
-  // Gestion des lignes du lot
   function handleProductChange(index: number, newProductId: string) {
     const next = [...bundleLines];
     next[index] = { ...next[index], productId: newProductId };
@@ -154,7 +153,6 @@ export default function LeboncoinPage() {
     setBundleLines([...bundleLines, { productId: '', quantity: 1 }]);
   }
 
-  // Bobines sélectionnées valides
   const selectedItems = bundleLines
     .filter((l) => l.productId)
     .map((l) => ({
@@ -166,53 +164,54 @@ export default function LeboncoinPage() {
   const totalQuantity = selectedItems.reduce((acc, item) => acc + Number(item.quantity || 0), 0);
   const calculatedPrice = customTotalPrice !== '' ? Number(customTotalPrice) : totalQuantity * unitPrice;
 
-  // Génération du titre
+  // Titre : "Lot 2 Bobines PLA Anycubic - 1 Silver 1 Or" ou "Bobine PLA Anycubic - Noir"
   const generateTitle = () => {
     if (selectedItems.length === 0) return 'Bobine Filament 3D';
 
     if (mode === 'single' || selectedItems.length === 1) {
       const item = selectedItems[0];
-      const countStr = item.quantity > 1 ? `Lot ${item.quantity} Bobines` : 'Bobine';
-      return `${countStr} Filament 3D ${item.product.material} ${item.product.brand} - ${item.product.color}`.trim();
+      const countPrefix = item.quantity > 1 ? `Lot ${item.quantity} Bobines` : 'Bobine';
+      return `${countPrefix} ${item.product.material} ${item.product.brand} - ${item.quantity > 1 ? `${item.quantity} ` : ''}${item.product.color}`.trim();
     }
 
-    // Extraction des marques et matériaux uniques
     const materials = Array.from(new Set(selectedItems.map((i) => i.product.material))).join(' / ');
-    const brands = Array.from(new Set(selectedItems.map((i) => i.product.brand))).join(', ');
-    const colors = selectedItems.map((i) => (i.quantity > 1 ? `${i.product.color} x${i.quantity}` : i.product.color)).join(', ');
+    const brands = Array.from(new Set(selectedItems.map((i) => i.product.brand))).join(' / ');
+    const colorsWithQty = selectedItems.map((i) => `${i.quantity} ${i.product.color}`).join(' ');
 
-    return `Lot ${totalQuantity} Bobines Filament 3D ${materials} ${brands} - ${colors}`.slice(0, 80);
+    return `Lot ${totalQuantity} Bobines ${materials} ${brands} - ${colorsWithQty}`.slice(0, 80);
   };
 
-  // Génération de la description
+  // Description formatée
   const generateDescription = () => {
     if (selectedItems.length === 0) return '';
 
+    const materialsList = Array.from(new Set(selectedItems.map((i) => i.product.material))).join(' / ');
+
     if (mode === 'single' || (selectedItems.length === 1 && selectedItems[0].quantity === 1)) {
       const p = selectedItems[0].product;
-      return `Vends bobine ${p.brand} ${p.material} ${p.color} compatible pour toutes les imprimantes 3D (Anycubic, Bambu Lab, Creality etc).
+      return `Vends bobine de filament (${p.material}) compatible avec toutes les imprimantes 3D (Anycubic, Bambu Lab, Creality, Elegoo, etc.).
+
+📦 DÉTAIL DE LA BOBINE (1 kg au total) :
+• 1x ${p.material} ${p.brand} - Couleur : ${p.color} (1 kg)
 
 🔹 CARACTÉRISTIQUES :
-• Marque : ${p.brand}
-• Type de filament : ${p.material} (Diamètre standard 1.75mm)
-• Couleur : ${p.color}
-• Poids : 1 kg
-• État : Neuf sous blister
+• Diamètre standard 1.75mm
+• État : Entièrement neuf sous blister avec sachet déshydratant
+• Prix : ${unitPrice} €
 
 Possibilité de faire des lots différents et panacher les couleurs si besoin. J'ai du PLA et du PETG sur mon compte.
 Toutes les bobines sur mon compte sont à ${unitPrice}€ l'unité, même en lot.
 
-Envoi rapide via Mondial Relay avec l'achat protégé sur Leboncoin ou remise en main propre chez moi à Nieppe.
+Envoi rapide et soigné via Mondial Relay avec le paiement sécurisé Leboncoin ou remise en main propre chez moi à Nieppe.
 
-Pour toute question, n'hésitez pas !`;
+Pour toute question, n'hésitez pas à m'envoyer un message !`;
     }
 
-    // Description pour un lot panaché
     const linesDescription = selectedItems
       .map((i) => `• ${i.quantity}x ${i.product.material} ${i.product.brand} - Couleur : ${i.product.color} (1 kg)`)
       .join('\n');
 
-    return `Vends lot de ${totalQuantity} bobines de filament 3D compatibles avec toutes les imprimantes 3D (Anycubic, Bambu Lab, Creality, Elegoo, etc.).
+    return `Vends lot de ${totalQuantity} bobines de filament (${materialsList}) compatibles avec toutes les imprimantes 3D (Anycubic, Bambu Lab, Creality, Elegoo, etc.).
 
 📦 COMPOSITION DU LOT (${totalQuantity} kg au total) :
 ${linesDescription}
@@ -270,7 +269,7 @@ Pour toute question, n'hésitez pas à m'envoyer un message !`;
               setMode('single');
               if (bundleLines.length > 1) setBundleLines([bundleLines[0]]);
             }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
               mode === 'single' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
             }`}
           >
@@ -279,7 +278,7 @@ Pour toute question, n'hésitez pas à m'envoyer un message !`;
           <button
             type="button"
             onClick={() => setMode('bundle')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
               mode === 'bundle' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
             }`}
           >
@@ -328,7 +327,7 @@ Pour toute question, n'hésitez pas à m'envoyer un message !`;
                       <button
                         type="button"
                         onClick={() => removeLine(idx)}
-                        className="p-1.5 text-slate-500 hover:text-rose-400 transition"
+                        className="p-1.5 text-slate-500 hover:text-rose-400 transition cursor-pointer"
                         title="Supprimer la ligne"
                       >
                         <Trash2 size={14} />
@@ -377,7 +376,7 @@ Pour toute question, n'hésitez pas à m'envoyer un message !`;
             <button
               type="button"
               onClick={addEmptyLine}
-              className="w-full text-xs py-2 border border-dashed border-slate-700 hover:border-indigo-500/50 text-slate-400 hover:text-indigo-400 rounded-xl transition flex items-center justify-center gap-1"
+              className="w-full text-xs py-2 border border-dashed border-slate-700 hover:border-indigo-500/50 text-slate-400 hover:text-indigo-400 rounded-xl transition flex items-center justify-center gap-1 cursor-pointer"
             >
               <Plus size={14} /> Ajouter une couleur / bobine au lot
             </button>
@@ -419,7 +418,7 @@ Pour toute question, n'hésitez pas à m'envoyer un message !`;
           </div>
         </div>
 
-        {/* Textes générés avec copie rapide */}
+        {/* Textes générés */}
         <div className="lg:col-span-7 space-y-4">
           <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 shadow-sm space-y-2">
             <div className="flex items-center justify-between">
@@ -457,7 +456,7 @@ Pour toute question, n'hésitez pas à m'envoyer un message !`;
 
             <textarea
               readOnly
-              rows={14}
+              rows={15}
               value={generateDescription()}
               className="w-full p-3.5 bg-slate-950 rounded-xl border border-slate-800 text-xs leading-relaxed text-slate-200 font-mono resize-none focus:outline-none"
             />
