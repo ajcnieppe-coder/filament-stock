@@ -115,9 +115,9 @@ export default function HistoryPage() {
     setLoading(true);
     try {
       const { data: prodData } = await supabase.from('products').select('*').order('brand', { ascending: true });
-      const { data: pOrders } = await supabase.from('purchase_orders').select('*');
+      const { data: pOrders } = await supabase.from('purchase_orders').select('*').order('created_at', { ascending: false });
       const { data: pItems } = await supabase.from('purchase_items').select('*');
-      const { data: sOrders } = await supabase.from('sales_orders').select('*');
+      const { data: sOrders } = await supabase.from('sales_orders').select('*').order('created_at', { ascending: false });
       const { data: sItems } = await supabase.from('sales_items').select('*');
 
       if (prodData) setProducts(prodData);
@@ -878,7 +878,7 @@ export default function HistoryPage() {
                 </div>
               </div>
 
-              {/* ÉDITION DES BOBINES VENDUES AVEC CHANGEMENT DE COULEUR / PRODUIT */}
+              {/* ÉDITION DES BOBINES VENDUES */}
               <div className="space-y-2 pt-2 border-t border-slate-800">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-white block">
@@ -897,7 +897,6 @@ export default function HistoryPage() {
                   {editSaleItems.map((item, idx) => (
                     <div key={item.id || idx} className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
                       <div className="flex items-center justify-between gap-2">
-                        {/* Sélecteur du produit / couleur */}
                         <div className="flex-1 min-w-0">
                           <label className="text-[10px] text-slate-500 block mb-0.5">Bobine / Couleur</label>
                           <select
@@ -1032,7 +1031,7 @@ export default function HistoryPage() {
                 />
               </div>
 
-              {/* ÉDITION DES BOBINES ACHETÉES AVEC CHANGEMENT DE PRODUIT */}
+              {/* ÉDITION DES BOBINES ACHETÉES */}
               <div className="space-y-2 pt-2 border-t border-slate-800">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-white block">
